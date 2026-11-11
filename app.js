@@ -4,7 +4,7 @@ tg?.ready();
 tg?.expand();
 
 // 2. Безопасно получаем данные пользователя (объявляем user ВСЕГО ОДИН РАЗ)
-const user = tg?.initDataUnsafe?.user || null;
+user = tg?.initDataUnsafe?.user || null;
 
 // 3. Выводим имя в кнопку
 if (user) {
