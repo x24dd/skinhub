@@ -206,13 +206,28 @@ let tickets = [];
 let activeFilter = "all";
 let dataReady = false;
 
+function resolveSkinImage(name, skinId, image) {
+  if (image && !image.includes("placehold.co")) return image;
+  if (skinId) {
+    const byId = SKINS.find((s) => s.id === skinId);
+    if (byId && byId.image) return byId.image;
+  }
+  if (name) {
+    const byName = SKINS.find((s) => s.name === name);
+    if (byName && byName.image) return byName.image;
+    const lower = name.toLowerCase();
+    const partial = SKINS.find((s) => s.name.toLowerCase() === lower || s.name.toLowerCase().includes(lower));
+    if (partial && partial.image) return partial.image;
+  }
+  return image || "";
+}
 function mapListing(row) {
   return {
     id: row.id,
     name: row.name,
     category: row.category,
     price: Number(row.price),
-    image: row.image || "",
+    image: resolveSkinImage(row.name, row.skin_id, row.image || ""),
     owner: row.owner,
     ownerName: row.owner_name || "",
     skinId: row.skin_id || ""
@@ -506,4 +521,7 @@ document.getElementById("sendReply").onclick = async () => {
 };
 
 applyI18n();
-Promise.all([loadSkinsCatalog(), loadAllData()]);
+Promise.all([loadSkinsCatalog(), loadAllData()]).then(() => {
+  listings = listings.map((l) => ({ ...l, image: resolveSkinImage(l.name, l.skinId, l.image) }));
+  renderCatalog();
+});
