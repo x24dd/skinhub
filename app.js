@@ -9,6 +9,37 @@ const userId = user?.id ? String(user.id) : "local-demo";
 const userName = user ? user.first_name + (user.last_name ? " " + user.last_name : "") : "Guest";
 const isAdmin = !!user && ADMIN_ID && String(user.id) === String(ADMIN_ID);
 
+/* ========== SUPABASE ==========
+  1. Создай проект на https://supabase.com
+  2. SQL Editor → вставь supabase_setup.sql → Run
+  3. Settings → API → скопируй URL и anon public key сюда:
+*/
+const SUPABASE_URL = "https://rqvsgihpllhbukruqdxa.supabase.co
+";   // например https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = "sb_publishable_r5dwBignQN1kULwgTHcvTA_4ZabvV3-";
+
+const sbEnabled = SUPABASE_URL.startsWith("http") && SUPABASE_ANON_KEY.length > 20 && !SUPABASE_ANON_KEY.startsWith("ВСТАВЬ");
+
+async function sb(path, options = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: options.prefer || "return=representation",
+      ...(options.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err || res.statusText);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+
 const LANGS = { ru:"Русский", en:"English", de:"Deutsch", zh:"中文", it:"Italiano", ja:"日本語" };
 
 const I18N = {
@@ -1231,25 +1262,57 @@ function applyI18n() {
 const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
 const write = (key, value) => localStorage.setItem(key, JSON.stringify(value));
 
-let listings = read("sh_listings_v3", [
-  { id: 1, name: "AK-47 | Redline", category: "rifle", price: 125, image: "", owner: "system", skinId: "ak-redline" },
-  { id: 2, name: "AWP | Asiimov", category: "rifle", price: 280, image: "", owner: "system", skinId: "awp-asiimov" },
-  { id: 3, name: "★ Karambit | Doppler", category: "knife", price: 890, image: "", owner: "system", skinId: "karambit-doppler" },
-  { id: 4, name: "Glock-18 | Fade", category: "pistol", price: 320, image: "", owner: "system", skinId: "glock-fade" }
-]);
-listings = listings.map((l) => {
-  if (!l.image) {
-    const s = SKINS.find((x) => x.id === l.skinId || x.name === l.name);
-    if (s) l.image = s.image;
-  }
-  return l;
-});
-let reviews = read("sh_reviews_v3", [
-  { name: "Alex", rating: 5, text: "Fast support via @xyrexon." },
-  { name: "Mira", rating: 5, text: "Stars payment worked smoothly." }
-]);
-let tickets = read("sh_tickets_v3", []);
+let listings = [];
+let reviews = [];
+let tickets = [];
 let activeFilter = "all";
+let dataReady = false;
+
+function mapListing(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    price: Number(row.price),
+    image: row.image || "",
+    owner: row.owner,
+    ownerName: row.owner_name || "",
+    skinId: row.skin_id || ""
+  };
+}
+function mapReview(row) {
+  return { id: row.id, name: row.name, rating: Number(row.rating), text: row.text };
+}
+function mapTicket(row) {
+  return { id: row.id, owner: row.owner, name: row.name, subject: row.subject, text: row.text, status: row.status, reply: row.reply || "" };
+}
+
+async function loadAllData() {
+  if (!sbEnabled) {
+    // fallback localStorage
+    listings = read("sh_listings_v3", []);
+    reviews = read("sh_reviews_v3", []);
+    tickets = read("sh_tickets_v3", []);
+    dataReady = true;
+    renderCatalog(); renderReviews(); renderTickets();
+    return;
+  }
+  try {
+    const [L, R, T] = await Promise.all([
+      sb("listings?select=*&order=created_at.desc"),
+      sb("reviews?select=*&order=created_at.desc"),
+      sb("tickets?select=*&order=created_at.desc")
+    ]);
+    listings = (L || []).map(mapListing);
+    reviews = (R || []).map(mapReview);
+    tickets = (T || []).map(mapTicket);
+  } catch (e) {
+    console.error("Supabase load error", e);
+    alert("Ошибка загрузки данных с сервера. Проверь SUPABASE_URL и ключ.");
+  }
+  dataReady = true;
+  renderCatalog(); renderReviews(); renderTickets();
+}
 
 document.getElementById("userLabel").textContent = userName;
 document.getElementById("profileName").textContent = userName;
@@ -1345,16 +1408,34 @@ document.querySelectorAll(".chip").forEach((b) =>
   })
 );
 
-document.getElementById("addListing").onclick = () => {
+document.getElementById("addListing").onclick = async () => {
   const skinId = skinSelect.value;
   const skin = SKINS.find((s) => s.id === skinId);
   const price = Number(document.getElementById("itemPrice").value);
   if (!skin || !Number.isFinite(price) || price <= 0) { alert(t("fillSkinPrice")); return; }
-  listings.unshift({
-    id: Date.now(), name: skin.name, category: document.getElementById("itemCategory").value || skin.category,
-    price, image: skin.image, owner: userId, skinId: skin.id
-  });
-  write("sh_listings_v3", listings);
+  const payload = {
+    name: skin.name,
+    category: document.getElementById("itemCategory").value || skin.category,
+    price,
+    image: skin.image,
+    owner: userId,
+    owner_name: userName,
+    skin_id: skin.id
+  };
+  try {
+    if (sbEnabled) {
+      const rows = await sb("listings", { method: "POST", body: JSON.stringify(payload) });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      listings.unshift(mapListing(row));
+    } else {
+      listings.unshift({ id: Date.now(), ...payload, skinId: skin.id, ownerName: userName });
+      write("sh_listings_v3", listings);
+    }
+  } catch (e) {
+    console.error(e);
+    alert("Не удалось сохранить объявление: " + e.message);
+    return;
+  }
   document.getElementById("itemPrice").value = "";
   skinSelect.value = "";
   if (skinSearch) skinSearch.value = "";
@@ -1370,11 +1451,24 @@ function renderReviews() {
     `<div class="entry"><h3>${escapeHtml(r.name)} <span style="color:#c6a3ff">${"★".repeat(Math.max(1, Math.min(5, Number(r.rating))))}</span></h3><p>${escapeHtml(r.text)}</p></div>`
   ).join("");
 }
-document.getElementById("addReview").onclick = () => {
-  const text = document.getElementById("reviewText").value.trim();
-  if (!text) { alert(t("writeReview")); return; }
-  reviews.unshift({ name: userName, rating: Number(document.getElementById("reviewRating").value), text });
-  write("sh_reviews_v3", reviews);
+document.getElementById("addReview").onclick = async () => {
+  const textVal = document.getElementById("reviewText").value.trim();
+  if (!textVal) { alert(t("writeReview")); return; }
+  const payload = { name: userName, rating: Number(document.getElementById("reviewRating").value), text: textVal };
+  try {
+    if (sbEnabled) {
+      const rows = await sb("reviews", { method: "POST", body: JSON.stringify(payload) });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      reviews.unshift(mapReview(row));
+    } else {
+      reviews.unshift(payload);
+      write("sh_reviews_v3", reviews);
+    }
+  } catch (e) {
+    console.error(e);
+    alert("Не удалось сохранить отзыв: " + e.message);
+    return;
+  }
   document.getElementById("reviewText").value = "";
   renderReviews();
 };
@@ -1388,12 +1482,25 @@ function renderTickets() {
   const mine = tickets.filter((x) => x.owner === userId);
   document.getElementById("ticketList").innerHTML = mine.map(ticketHtml).join("") || `<p class="muted">${t("noTickets")}</p>`;
 }
-document.getElementById("createTicket").onclick = () => {
+document.getElementById("createTicket").onclick = async () => {
   const subject = document.getElementById("ticketSubject").value.trim();
-  const text = document.getElementById("ticketText").value.trim();
-  if (!subject || !text) { alert(t("fillTicket")); return; }
-  tickets.unshift({ id: Date.now(), owner: userId, name: userName, subject, text, status: t("statusNew"), reply: "" });
-  write("sh_tickets_v3", tickets);
+  const textVal = document.getElementById("ticketText").value.trim();
+  if (!subject || !textVal) { alert(t("fillTicket")); return; }
+  const payload = { owner: userId, name: userName, subject, text: textVal, status: t("statusNew"), reply: "" };
+  try {
+    if (sbEnabled) {
+      const rows = await sb("tickets", { method: "POST", body: JSON.stringify(payload) });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      tickets.unshift(mapTicket(row));
+    } else {
+      tickets.unshift({ id: Date.now(), ...payload });
+      write("sh_tickets_v3", tickets);
+    }
+  } catch (e) {
+    console.error(e);
+    alert("Не удалось создать обращение: " + e.message);
+    return;
+  }
   document.getElementById("ticketSubject").value = "";
   document.getElementById("ticketText").value = "";
   renderTickets();
@@ -1411,29 +1518,54 @@ function renderAdmin() {
   if (!isAdmin) return;
   document.getElementById("adminTickets").innerHTML = tickets.map(ticketHtml).join("") || `<p class="muted">${t("noAdminTickets")}</p>`;
 }
-document.getElementById("adminAddReviewBtn").onclick = () => {
+document.getElementById("adminAddReviewBtn").onclick = async () => {
   if (!isAdmin) return alert(t("noAccess"));
   const name = document.getElementById("adminReviewName").value.trim();
-  const text = document.getElementById("adminReviewText").value.trim();
-  if (!name || !text) { alert(t("fillNameText")); return; }
-  reviews.unshift({ name, rating: 5, text });
-  write("sh_reviews_v3", reviews);
+  const textVal = document.getElementById("adminReviewText").value.trim();
+  if (!name || !textVal) { alert(t("fillNameText")); return; }
+  const payload = { name, rating: 5, text: textVal };
+  try {
+    if (sbEnabled) {
+      const rows = await sb("reviews", { method: "POST", body: JSON.stringify(payload) });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      reviews.unshift(mapReview(row));
+    } else {
+      reviews.unshift(payload);
+      write("sh_reviews_v3", reviews);
+    }
+  } catch (e) {
+    console.error(e);
+    alert("Не удалось добавить отзыв: " + e.message);
+    return;
+  }
   renderReviews();
   alert(t("reviewAdded"));
 };
-document.getElementById("sendReply").onclick = () => {
+document.getElementById("sendReply").onclick = async () => {
   if (!isAdmin) return alert(t("noAccess"));
   const id = Number(document.getElementById("replyTicketId").value);
   const reply = document.getElementById("replyTicketText").value.trim();
   const ticket = tickets.find((x) => x.id === id);
   if (!ticket || !reply) { alert(t("checkIdReply")); return; }
-  ticket.reply = reply; ticket.status = t("statusReplied");
-  write("sh_tickets_v3", tickets);
+  try {
+    if (sbEnabled) {
+      await sb(`tickets?id=eq.${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ reply, status: t("statusReplied") }),
+        prefer: "return=minimal"
+      });
+    }
+    ticket.reply = reply;
+    ticket.status = t("statusReplied");
+    if (!sbEnabled) write("sh_tickets_v3", tickets);
+  } catch (e) {
+    console.error(e);
+    alert("Не удалось сохранить ответ: " + e.message);
+    return;
+  }
   renderAdmin(); renderTickets();
   alert(t("replySaved"));
 };
 
 applyI18n();
-renderCatalog();
-renderReviews();
-renderTickets();
+loadAllData();
