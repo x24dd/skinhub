@@ -3,104 +3,198 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>SKINHUB DEMO</title>
+  <title>SKINHUB</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
   <header class="top">
-    <div class="brand"><span class="logo">S</span><div><b>SKINHUB</b><small>COMMUNITY MARKET · DEMO</small></div></div>
-    <div class="user" id="userLabel">Гость</div>
+    <div class="brand">
+      <span class="logo">S</span>
+      <div>
+        <b>SKINHUB</b>
+        <small id="brandSub">COMMUNITY MARKET · DEMO</small>
+      </div>
+    </div>
+    <div class="header-right">
+      <select id="langSelect" class="lang-select" aria-label="Language"></select>
+      <div class="user" id="userLabel">Guest</div>
+    </div>
   </header>
 
   <main>
     <section class="hero">
-      <div class="eyebrow">COMMUNITY MARKETPLACE</div>
-      <h1>ТВОЯ ИГРОВАЯ<br><span>ВИТРИНА</span></h1>
-      <p>Демонстрационный маркетплейс с каталогом, объявлениями, отзывами и поддержкой.</p>
-      <div class="hero-note">DEMO MODE — без реальных платежей и передачи предметов</div>
+      <div class="eyebrow" id="heroEyebrow">COMMUNITY MARKETPLACE</div>
+      <h1 id="heroTitle">ТВОЯ ИГРОВАЯ<br><span>ВИТРИНА</span></h1>
+      <p id="heroDesc">SkinHub — это маркет, где вы можете приобрести/продать скины за Telegram Stars!</p>
+      <div class="hero-note" id="heroNote">Оплата и передача — через Telegram Stars и Steam Trade</div>
     </section>
 
     <nav class="tabs">
-      <button class="tab active" data-page="home">Главная</button>
-      <button class="tab" data-page="sell">Выставить</button>
-      <button class="tab" data-page="reviews">Отзывы</button>
-      <button class="tab" data-page="support">Поддержка</button>
-      <button class="tab" data-page="profile">Профиль</button>
-      <button class="tab" data-page="admin" id="adminTab" hidden>Админ</button>
+      <button class="tab active" data-page="home" data-i18n="tabHome">Главная</button>
+      <button class="tab" data-page="sell" data-i18n="tabSell">Выставить</button>
+      <button class="tab" data-page="howto" data-i18n="tabHowto">Как это работает</button>
+      <button class="tab" data-page="reviews" data-i18n="tabReviews">Отзывы</button>
+      <button class="tab" data-page="support" data-i18n="tabSupport">Поддержка</button>
+      <button class="tab" data-page="profile" data-i18n="tabProfile">Профиль</button>
+      <button class="tab" data-page="admin" id="adminTab" hidden data-i18n="tabAdmin">Админ</button>
     </nav>
 
     <section id="home" class="page active">
-      <div class="section-head"><div><div class="eyebrow">DISCOVER</div><h2>Витрина сообщества</h2></div><input id="search" placeholder="Поиск..." aria-label="Поиск"></div>
+      <div class="section-head">
+        <div>
+          <div class="eyebrow" data-i18n="discover">DISCOVER</div>
+          <h2 data-i18n="showcaseTitle">Витрина сообщества</h2>
+        </div>
+        <input id="search" data-i18n-placeholder="searchPlaceholder" placeholder="Поиск..." aria-label="Search">
+      </div>
       <div class="filters">
-        <button class="chip selected" data-filter="all">Все</button>
-        <button class="chip" data-filter="rifle">Винтовки</button>
-        <button class="chip" data-filter="pistol">Пистолеты</button>
-        <button class="chip" data-filter="knife">Ножи</button>
-        <button class="chip" data-filter="other">Другое</button>
+        <button class="chip selected" data-filter="all" data-i18n="filterAll">Все</button>
+        <button class="chip" data-filter="rifle" data-i18n="filterRifle">Винтовки</button>
+        <button class="chip" data-filter="pistol" data-i18n="filterPistol">Пистолеты</button>
+        <button class="chip" data-filter="knife" data-i18n="filterKnife">Ножи</button>
+        <button class="chip" data-filter="other" data-i18n="filterOther">Другое</button>
       </div>
       <div id="catalog" class="grid"></div>
     </section>
 
     <section id="sell" class="page">
-      <div class="eyebrow">CREATE LISTING</div><h2>Новое объявление</h2>
+      <div class="eyebrow" data-i18n="createListing">CREATE LISTING</div>
+      <h2 data-i18n="newListing">Новое объявление</h2>
       <div class="panel form">
-        <label>Название предмета<input id="itemName" placeholder="Например, Demo Item"></label>
-        <label>Категория<select id="itemCategory"><option value="rifle">Винтовки</option><option value="pistol">Пистолеты</option><option value="knife">Ножи</option><option value="other">Другое</option></select></label>
-        <label>Цена для демонстрации (условные баллы)<input id="itemPrice" type="number" min="1" placeholder="100"></label>
-        <label>Ссылка на изображение (необязательно)<input id="itemImage" placeholder="https://..."></label>
-        <button class="primary" id="addListing">Добавить в демо-каталог</button>
-        <p class="muted">Объявление сохранится только в этом браузере. Это не предложение о продаже и не передача предмета.</p>
+        <label>
+          <span data-i18n="selectSkin">Выберите скин</span>
+          <select id="itemSkin">
+            <option value="">—</option>
+          </select>
+        </label>
+        <div id="skinPreview" class="skin-preview hidden">
+          <img id="skinPreviewImg" alt="">
+          <div id="skinPreviewName"></div>
+        </div>
+        <label>
+          <span data-i18n="category">Категория</span>
+          <select id="itemCategory">
+            <option value="rifle" data-i18n="filterRifle">Винтовки</option>
+            <option value="pistol" data-i18n="filterPistol">Пистолеты</option>
+            <option value="knife" data-i18n="filterKnife">Ножи</option>
+            <option value="other" data-i18n="filterOther">Другое</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="priceStars">Цена (Telegram Stars)</span>
+          <input id="itemPrice" type="number" min="1" placeholder="100">
+        </label>
+        <button class="primary" id="addListing" data-i18n="addListing">Добавить объявление</button>
+        <p class="muted" data-i18n="listingHint">Объявление появится в вашей витрине. Покупатели увидят его в каталоге приложения.</p>
+      </div>
+    </section>
+
+    <section id="howto" class="page">
+      <div class="eyebrow" data-i18n="howtoEyebrow">GUIDE</div>
+      <h2 data-i18n="howtoTitle">Оплата и передача</h2>
+      <div class="panel stack howto">
+        <div class="entry">
+          <h3 data-i18n="howto1Title">1. Выбор скина</h3>
+          <p data-i18n="howto1Text">Продавец выбирает скин из списка — фото подставляется автоматически. Покупатель видит объявление в каталоге.</p>
+        </div>
+        <div class="entry">
+          <h3 data-i18n="howto2Title">2. Оплата Telegram Stars</h3>
+          <p data-i18n="howto2Text">Сделка оформляется за Telegram Stars. После согласования условий покупатель отправляет Stars продавцу через Telegram.</p>
+        </div>
+        <div class="entry">
+          <h3 data-i18n="howto3Title">3. Передача в Steam</h3>
+          <p data-i18n="howto3Text">После оплаты продавец отправляет трейд-оффер в Steam. Покупатель принимает предмет. При спорных ситуациях пишите в поддержку.</p>
+        </div>
+        <div class="entry">
+          <h3 data-i18n="howto4Title">4. Поддержка</h3>
+          <p data-i18n="howto4Text">Вопросы по сделкам и безопасности — @SkinHub_support</p>
+        </div>
       </div>
     </section>
 
     <section id="reviews" class="page">
-      <div class="eyebrow">COMMUNITY FEEDBACK</div><h2>Отзывы</h2>
+      <div class="eyebrow" data-i18n="feedback">COMMUNITY FEEDBACK</div>
+      <h2 data-i18n="reviewsTitle">Отзывы</h2>
       <div id="reviewList" class="stack"></div>
       <div class="panel form">
-        <h3>Оставить демо-отзыв</h3>
-        <label>Оценка<select id="reviewRating"><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select></label>
-        <label>Комментарий<textarea id="reviewText" rows="3" placeholder="Напиши отзыв..."></textarea></label>
-        <button class="primary" id="addReview">Отправить отзыв</button>
+        <h3 data-i18n="leaveReview">Оставить отзыв</h3>
+        <label>
+          <span data-i18n="rating">Оценка</span>
+          <select id="reviewRating">
+            <option>5</option><option>4</option><option>3</option><option>2</option><option>1</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="comment">Комментарий</span>
+          <textarea id="reviewText" rows="3" data-i18n-placeholder="reviewPlaceholder" placeholder="Напиши отзыв..."></textarea>
+        </label>
+        <button class="primary" id="addReview" data-i18n="sendReview">Отправить отзыв</button>
       </div>
     </section>
 
     <section id="support" class="page">
-      <div class="eyebrow">WE ARE HERE TO HELP</div><h2>Поддержка</h2>
-      <div class="panel form">
-        <label>Тема обращения<input id="ticketSubject" placeholder="Например, вопрос по профилю"></label>
-        <label>Сообщение<textarea id="ticketText" rows="4" placeholder="Опиши вопрос..."></textarea></label>
-        <button class="primary" id="createTicket">Создать обращение</button>
+      <div class="eyebrow" data-i18n="helpEyebrow">WE ARE HERE TO HELP</div>
+      <h2 data-i18n="supportTitle">Поддержка</h2>
+      <div class="panel support-card">
+        <p data-i18n="supportIntro">Нужна помощь со сделкой, оплатой Stars или передачей скина?</p>
+        <a class="primary support-link" href="https://t.me/SkinHub_support" target="_blank" rel="noopener">@SkinHub_support</a>
       </div>
-      <h3 class="subhead">Мои обращения</h3><div id="ticketList" class="stack"></div>
+      <div class="panel form">
+        <label>
+          <span data-i18n="ticketSubject">Тема обращения</span>
+          <input id="ticketSubject" data-i18n-placeholder="ticketSubjectPh" placeholder="Например, вопрос по сделке">
+        </label>
+        <label>
+          <span data-i18n="ticketMessage">Сообщение</span>
+          <textarea id="ticketText" rows="4" data-i18n-placeholder="ticketMessagePh" placeholder="Опиши вопрос..."></textarea>
+        </label>
+        <button class="primary" id="createTicket" data-i18n="createTicket">Создать обращение</button>
+      </div>
+      <h3 class="subhead" data-i18n="myTickets">Мои обращения</h3>
+      <div id="ticketList" class="stack"></div>
     </section>
 
     <section id="profile" class="page">
-      <div class="eyebrow">ACCOUNT</div><h2>Профиль</h2>
-      <div class="panel profile-card"><div class="avatar" id="avatar">?</div><div><h3 id="profileName">Гость</h3><p class="muted" id="profileId">Открой приложение через Telegram</p></div></div>
-      <div class="panel"><h3>Мои объявления</h3><div id="myListings" class="stack"></div></div>
-      <p class="muted">В демо-версии данные хранятся локально в браузере.</p>
+      <div class="eyebrow" data-i18n="account">ACCOUNT</div>
+      <h2 data-i18n="profileTitle">Профиль</h2>
+      <div class="panel profile-card">
+        <div class="avatar" id="avatar">?</div>
+        <div>
+          <h3 id="profileName">Guest</h3>
+          <p class="muted" id="profileId">Open via Telegram</p>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 data-i18n="myListings">Мои объявления</h3>
+        <div id="myListings" class="stack"></div>
+      </div>
     </section>
 
     <section id="admin" class="page">
-      <div class="eyebrow">CONTROL CENTER</div><h2>Админ-панель · DEMO</h2>
-      <div class="warning">Демо-ограничение: права администратора в этом макете проверяются на клиенте и НЕ являются безопасной защитой для настоящего сервиса.</div>
+      <div class="eyebrow">CONTROL CENTER</div>
+      <h2 data-i18n="adminTitle">Админ-панель</h2>
+      <div class="warning" data-i18n="adminWarning">Права администратора в этом макете проверяются на клиенте и не являются безопасной защитой для продакшена.</div>
       <div class="panel form">
-        <h3>Добавить отзыв от имени магазина</h3>
-        <label>Имя<input id="adminReviewName" placeholder="Покупатель"></label>
-        <label>Текст<textarea id="adminReviewText" rows="3" placeholder="Текст отзыва"></textarea></label>
-        <button class="primary" id="adminAddReview">Добавить демо-отзыв</button>
+        <h3 data-i18n="adminAddReview">Добавить отзыв от имени магазина</h3>
+        <label><span data-i18n="name">Имя</span><input id="adminReviewName" placeholder="Buyer"></label>
+        <label><span data-i18n="text">Текст</span><textarea id="adminReviewText" rows="3"></textarea></label>
+        <button class="primary" id="adminAddReview" data-i18n="addReviewBtn">Добавить отзыв</button>
       </div>
-      <div class="panel"><h3>Обращения пользователей</h3><div id="adminTickets" class="stack"></div></div>
+      <div class="panel">
+        <h3 data-i18n="userTickets">Обращения пользователей</h3>
+        <div id="adminTickets" class="stack"></div>
+      </div>
       <div class="panel form">
-        <h3>Ответить на обращение</h3>
-        <label>ID обращения<input id="replyTicketId" placeholder="Например, 1"></label>
-        <label>Ответ<textarea id="replyTicketText" rows="3" placeholder="Ответ поддержки"></textarea></label>
-        <button class="primary" id="sendReply">Сохранить ответ</button>
+        <h3 data-i18n="replyTicket">Ответить на обращение</h3>
+        <label><span>ID</span><input id="replyTicketId" placeholder="1"></label>
+        <label><span data-i18n="reply">Ответ</span><textarea id="replyTicketText" rows="3"></textarea></label>
+        <button class="primary" id="sendReply" data-i18n="saveReply">Сохранить ответ</button>
       </div>
     </section>
   </main>
-  <footer>SKINHUB DEMO <span>·</span> COMMUNITY UI</footer>
+
+  <footer>SKINHUB <span>·</span> TELEGRAM STARS MARKET</footer>
   <script src="app.js"></script>
 </body>
 </html>
