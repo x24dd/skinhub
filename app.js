@@ -1,12 +1,11 @@
-// 1. Подключаемся к Telegram WebApp и инициализируем
+// 1. Инициализируем Telegram WebApp и получаем пользователя ОДИН раз
 const tg = window.Telegram?.WebApp;
 tg?.ready();
 tg?.expand();
 
-// 2. Объявляем user ТОЛЬКО ОДИН РАЗ
 const user = tg?.initDataUnsafe?.user || null;
 
-// 3. Выводим имя в кнопку
+// 2. Выводим имя в кнопку
 if (user) {
     const userLabel = document.getElementById("userLabel");
     if (userLabel) {
@@ -14,7 +13,7 @@ if (user) {
     }
 }
 
-// 4. Переменные авторизации и администратора
+// 3. Параметры
 const params = new URLSearchParams(location.search);
 const ADMIN_ID = params.get("demo_admin_id") || "";
 const userId = user?.id ? String(user.id) : "local-demo";
