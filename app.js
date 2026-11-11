@@ -1,3 +1,16 @@
+// 1. Подключаемся к Telegram WebApp
+const tg = window.Telegram?.WebApp;
+
+// 2. Проверяем, запущен ли сайт внутри Telegram и есть ли данные юзера
+if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+    const user = tg.initDataUnsafe.user;
+    
+    // 3. Ищем нашу кнопку в HTML и меняем "Guest" на имя пользователя
+    const userLabel = document.getElementById("userLabel");
+    if (userLabel) {
+        userLabel.textContent = user.first_name; // Здесь подставится ваше имя из Telegram
+    }
+}
 const tg = window.Telegram?.WebApp;
 tg?.ready();
 tg?.expand();
