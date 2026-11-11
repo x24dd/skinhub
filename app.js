@@ -16,7 +16,7 @@ const isAdmin = !!user && ADMIN_ID && String(user.id) === String(ADMIN_ID);
 */
 const SUPABASE_URL = "https://rqvsgihpllhbukruqdxa.supabase.co
 ";   // например https://xxxx.supabase.co
-const SUPABASE_ANON_KEY = "sb_publishable_r5dwBignQN1kULwgTHcvTA_4ZabvV3-";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxdnNnaWhwbGxoYnVrcnVxZHhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzODQzNzQsImV4cCI6MjEwOTk2MDM3NH0.hlDgvV6SgGZzTuQZvs-SOnk6oDVmtIlwALAPSk2udPA";
 
 const sbEnabled = SUPABASE_URL.startsWith("http") && SUPABASE_ANON_KEY.length > 20 && !SUPABASE_ANON_KEY.startsWith("ВСТАВЬ");
 
@@ -72,7 +72,7 @@ nothingFound:"Nothing found.",noListings:"You have no listings yet.",noTickets:"
 fillSkinPrice:"Select a skin and enter a positive Stars price.",listingAdded:"Listing added. Contact @xyrexon to transfer the skin.",writeReview:"Please write a review.",fillTicket:"Fill in subject and message.",ticketSaved:"Ticket saved.",
 noAccess:"Access denied.",fillNameText:"Fill in name and text.",reviewAdded:"Review added.",checkIdReply:"Check ticket ID and reply.",replySaved:"Reply saved.",openTelegram:"Open the app via Telegram",localMode:"Local mode outside Telegram",
 statusNew:"New",statusReplied:"Replied",supportReply:"Support reply",skinsShown:"skins"
-},
+},ыы
 de:{
 brandSub:"COMMUNITY MARKET · DEMO",heroEyebrow:"COMMUNITY MARKETPLACE",heroTitle:"DEINE GAMING-<br><span>VITRINE</span>",
 heroDesc:"SkinHub ist ein Marktplatz, auf dem du Skins für Telegram Stars kaufen/verkaufen kannst!",
