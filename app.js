@@ -14,8 +14,8 @@ const isAdmin = !!user && ADMIN_ID && String(user.id) === String(ADMIN_ID);
   2. SQL Editor → вставь supabase_setup.sql → Run
   3. Settings → API → скопируй URL и anon public key сюда:
 */
-const SUPABASE_URL = "ВСТАВЬ_URL";   // например https://xxxx.supabase.co
-const SUPABASE_ANON_KEY = "ВСТАВЬ_ANON_KEY";
+const SUPABASE_URL = "https://rqvsgihpllhbukruqdxa.supabase.co";   // например https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxdnNnaWhwbGxoYnVrcnVxZHhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzODQzNzQsImV4cCI6MjEwOTk2MDM3NH0.hlDgvV6SgGZzTuQZvs-SOnk6oDVmtIlwALAPSk2udPA";
 
 const sbEnabled = SUPABASE_URL.startsWith("http") && SUPABASE_ANON_KEY.length > 20 && !SUPABASE_ANON_KEY.startsWith("ВСТАВЬ");
 
