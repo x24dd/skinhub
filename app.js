@@ -14,8 +14,8 @@ const isAdmin = !!user && ADMIN_ID && String(user.id) === String(ADMIN_ID);
   2. SQL Editor → вставь supabase_setup.sql → Run
   3. Settings → API → скопируй URL и anon public key сюда:
 */
-const SUPABASE_URL = "https://rqvsgihpllhbukruqdxa.supabase.co";   // например https://xxxx.supabase.co
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxdnNnaWhwbGxoYnVrcnVxZHhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzODQzNzQsImV4cCI6MjEwOTk2MDM3NH0.hlDgvV6SgGZzTuQZvs-SOnk6oDVmtIlwALAPSk2udPA";
+const SUPABASE_URL = "ВСТАВЬ_URL";   // например https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = "ВСТАВЬ_ANON_KEY";
 
 const sbEnabled = SUPABASE_URL.startsWith("http") && SUPABASE_ANON_KEY.length > 20 && !SUPABASE_ANON_KEY.startsWith("ВСТАВЬ");
 
@@ -39,6 +39,174 @@ async function sb(path, options = {}) {
 }
 
 
+/* ========== AUTH (ник + пароль через Supabase Auth) ========== */
+function nickToEmail(nick) {
+  const safe = String(nick).trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  return safe + "@skinhub.local";
+}
+
+let session = null;
+try { session = JSON.parse(localStorage.getItem("sh_session") || "null"); } catch { session = null; }
+
+function isLoggedIn() {
+  return !!(session && session.access_token && session.username);
+}
+
+function currentUsername() {
+  if (isLoggedIn()) return session.username;
+  return userName;
+}
+
+function currentOwnerId() {
+  if (isLoggedIn()) return "user:" + session.user_id;
+  return userId;
+}
+
+function updateAuthUI() {
+  const btn = document.getElementById("authBtn");
+  const logout = document.getElementById("doLogout");
+  if (btn) btn.textContent = isLoggedIn() ? session.username : t("authGuest");
+  if (logout) logout.classList.toggle("hidden", !isLoggedIn());
+  const label = document.getElementById("userLabel");
+  if (label) label.textContent = isLoggedIn() ? session.username : t("authGuest");
+  const pn = document.getElementById("profileName");
+  if (pn) pn.textContent = isLoggedIn() ? session.username : userName;
+  const pi = document.getElementById("profileId");
+  if (pi) pi.textContent = isLoggedIn() ? ("@" + session.username) : (user ? "Telegram ID: " + user.id : t("localMode"));
+  const av = document.getElementById("avatar");
+  if (av) av.textContent = (isLoggedIn() ? session.username : userName)[0]?.toUpperCase() || "?";
+}
+
+async function sbAuth(path, body) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data.error_description || data.msg || data.error || data.message || res.statusText;
+    throw new Error(msg);
+  }
+  return data;
+}
+
+function openAuthModal() {
+  document.getElementById("authModal")?.classList.remove("hidden");
+  document.getElementById("authError").textContent = "";
+  updateAuthUI();
+}
+function closeAuthModal() {
+  document.getElementById("authModal")?.classList.add("hidden");
+}
+
+document.getElementById("authBtn")?.addEventListener("click", openAuthModal);
+document.getElementById("authClose")?.addEventListener("click", closeAuthModal);
+document.getElementById("authModal")?.addEventListener("click", (e) => {
+  if (e.target.id === "authModal") closeAuthModal();
+});
+
+document.querySelectorAll(".auth-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".auth-tab").forEach((x) => x.classList.remove("active"));
+    tab.classList.add("active");
+    const mode = tab.dataset.auth;
+    document.getElementById("authLoginPane").classList.toggle("hidden", mode !== "login");
+    document.getElementById("authRegisterPane").classList.toggle("hidden", mode !== "register");
+    document.getElementById("authError").textContent = "";
+  });
+});
+
+document.getElementById("doLogin")?.addEventListener("click", async () => {
+  const nick = document.getElementById("loginNick").value.trim();
+  const pass = document.getElementById("loginPass").value;
+  const err = document.getElementById("authError");
+  if (!nick || !pass) return (err.textContent = t("authNeedFields"));
+  if (!sbEnabled) return (err.textContent = "Supabase не настроен");
+  try {
+    const data = await sbAuth("token?grant_type=password", {
+      email: nickToEmail(nick),
+      password: pass
+    });
+    session = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      user_id: data.user?.id || data.user_id,
+      username: nick
+    };
+    write("sh_session", session);
+    updateAuthUI();
+    err.textContent = t("authOkLogin");
+    setTimeout(closeAuthModal, 500);
+  } catch (e) {
+    err.textContent = e.message || t("authErr");
+  }
+});
+
+document.getElementById("doRegister")?.addEventListener("click", async () => {
+  const nick = document.getElementById("regNick").value.trim();
+  const pass = document.getElementById("regPass").value;
+  const pass2 = document.getElementById("regPass2").value;
+  const err = document.getElementById("authError");
+  if (!nick || !pass) return (err.textContent = t("authNeedFields"));
+  if (nick.length < 3) return (err.textContent = t("authNickShort"));
+  if (pass.length < 6) return (err.textContent = t("authPassShort"));
+  if (pass !== pass2) return (err.textContent = t("authPassMatch"));
+  if (!sbEnabled) return (err.textContent = "Supabase не настроен");
+  try {
+    const data = await sbAuth("signup", {
+      email: nickToEmail(nick),
+      password: pass,
+      data: { username: nick }
+    });
+    // some projects require email confirm — if session returned, login immediately
+    if (data.access_token) {
+      session = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        user_id: data.user?.id,
+        username: nick
+      };
+      write("sh_session", session);
+      updateAuthUI();
+      err.textContent = t("authOkReg");
+      setTimeout(closeAuthModal, 600);
+    } else if (data.user || data.id) {
+      // try login right away
+      const login = await sbAuth("token?grant_type=password", {
+        email: nickToEmail(nick),
+        password: pass
+      });
+      session = {
+        access_token: login.access_token,
+        refresh_token: login.refresh_token,
+        user_id: login.user?.id,
+        username: nick
+      };
+      write("sh_session", session);
+      updateAuthUI();
+      err.textContent = t("authOkReg");
+      setTimeout(closeAuthModal, 600);
+    } else {
+      err.textContent = t("authOkReg");
+    }
+  } catch (e) {
+    err.textContent = e.message || t("authErr");
+  }
+});
+
+document.getElementById("doLogout")?.addEventListener("click", () => {
+  session = null;
+  localStorage.removeItem("sh_session");
+  updateAuthUI();
+  closeAuthModal();
+});
+
+
+
 const LANGS = { ru:"Русский", en:"English", de:"Deutsch", zh:"中文", it:"Italiano", ja:"日本語" };
 
 const I18N = {
@@ -47,7 +215,7 @@ brandSub:"COMMUNITY MARKET · DEMO",heroEyebrow:"COMMUNITY MARKETPLACE",heroTitl
 heroDesc:"SkinHub — это маркет, где вы можете приобрести/продать скины за Telegram Stars!",
 tabHome:"Главная",tabSell:"Выставить",tabHowto:"Как это работает",tabReviews:"Отзывы",tabSupport:"Поддержка",tabProfile:"Профиль",tabAdmin:"Админ",
 discover:"DISCOVER",showcaseTitle:"Витрина сообщества",searchPlaceholder:"Поиск...",filterAll:"Все",filterRifle:"Винтовки",filterPistol:"Пистолеты",filterKnife:"Ножи",filterOther:"Другое",
-createListing:"CREATE LISTING",newListing:"Новое объявление",selectSkin:"Выберите скин",category:"Категория",priceStars:"Цена (Telegram Stars)",addListing:"Добавить объявление",
+createListing:"CREATE LISTING",newListing:"Новое объявление",selectSkin:"Выберите скин",category:"Категория",wear:"Износ",wearFN:"Factory New",wearMW:"Minimal Wear",wearFT:"Field-Tested",wearWW:"Well-Worn",wearBS:"Battle-Scarred",priceStars:"Цена (Telegram Stars)",addListing:"Добавить объявление",
 howtoEyebrow:"GUIDE",howtoTitle:"Как это работает",feedback:"COMMUNITY FEEDBACK",reviewsTitle:"Отзывы",leaveReview:"Оставить отзыв",rating:"Оценка",comment:"Комментарий",reviewPlaceholder:"Напиши отзыв...",sendReview:"Отправить отзыв",
 helpEyebrow:"WE ARE HERE TO HELP",supportTitle:"Поддержка",ticketSubject:"Тема обращения",ticketSubjectPh:"Например, вопрос по сделке",ticketMessage:"Сообщение",ticketMessagePh:"Опиши вопрос...",createTicket:"Создать обращение",myTickets:"Мои обращения",
 account:"ACCOUNT",profileTitle:"Профиль",myListings:"Мои объявления",adminTitle:"Админ-панель",adminWarning:"Права администратора в этом макете проверяются на клиенте и не являются безопасной защитой для продакшена.",
@@ -62,7 +230,7 @@ brandSub:"COMMUNITY MARKET · DEMO",heroEyebrow:"COMMUNITY MARKETPLACE",heroTitl
 heroDesc:"SkinHub is a market where you can buy/sell skins for Telegram Stars!",
 tabHome:"Home",tabSell:"Sell",tabHowto:"How it works",tabReviews:"Reviews",tabSupport:"Support",tabProfile:"Profile",tabAdmin:"Admin",
 discover:"DISCOVER",showcaseTitle:"Community showcase",searchPlaceholder:"Search...",filterAll:"All",filterRifle:"Rifles",filterPistol:"Pistols",filterKnife:"Knives",filterOther:"Other",
-createListing:"CREATE LISTING",newListing:"New listing",selectSkin:"Select a skin",category:"Category",priceStars:"Price (Telegram Stars)",addListing:"Add listing",
+createListing:"CREATE LISTING",newListing:"New listing",selectSkin:"Select a skin",category:"Category",wear:"Wear",wearFN:"Factory New",wearMW:"Minimal Wear",wearFT:"Field-Tested",wearWW:"Well-Worn",wearBS:"Battle-Scarred",priceStars:"Price (Telegram Stars)",addListing:"Add listing",
 howtoEyebrow:"GUIDE",howtoTitle:"How it works",feedback:"COMMUNITY FEEDBACK",reviewsTitle:"Reviews",leaveReview:"Leave a review",rating:"Rating",comment:"Comment",reviewPlaceholder:"Write a review...",sendReview:"Submit review",
 helpEyebrow:"WE ARE HERE TO HELP",supportTitle:"Support",ticketSubject:"Subject",ticketSubjectPh:"e.g. question about a deal",ticketMessage:"Message",ticketMessagePh:"Describe your question...",createTicket:"Create ticket",myTickets:"My tickets",
 account:"ACCOUNT",profileTitle:"Profile",myListings:"My listings",adminTitle:"Admin panel",adminWarning:"Admin rights in this mock are checked on the client and are not a secure production guard.",
@@ -77,7 +245,7 @@ brandSub:"COMMUNITY MARKET · DEMO",heroEyebrow:"COMMUNITY MARKETPLACE",heroTitl
 heroDesc:"SkinHub ist ein Marktplatz, auf dem du Skins für Telegram Stars kaufen/verkaufen kannst!",
 tabHome:"Start",tabSell:"Verkaufen",tabHowto:"So funktioniert's",tabReviews:"Bewertungen",tabSupport:"Support",tabProfile:"Profil",tabAdmin:"Admin",
 discover:"ENTDECKEN",showcaseTitle:"Community-Vitrine",searchPlaceholder:"Suche...",filterAll:"Alle",filterRifle:"Gewehre",filterPistol:"Pistolen",filterKnife:"Messer",filterOther:"Sonstiges",
-createListing:"ANZEIGE ERSTELLEN",newListing:"Neue Anzeige",selectSkin:"Skin auswählen",category:"Kategorie",priceStars:"Preis (Telegram Stars)",addListing:"Anzeige hinzufügen",
+createListing:"ANZEIGE ERSTELLEN",newListing:"Neue Anzeige",selectSkin:"Skin auswählen",category:"Kategorie",wear:"Abnutzung",wearFN:"Factory New",wearMW:"Minimal Wear",wearFT:"Field-Tested",wearWW:"Well-Worn",wearBS:"Battle-Scarred",priceStars:"Preis (Telegram Stars)",addListing:"Anzeige hinzufügen",
 howtoEyebrow:"ANLEITUNG",howtoTitle:"So funktioniert's",feedback:"COMMUNITY-FEEDBACK",reviewsTitle:"Bewertungen",leaveReview:"Bewertung abgeben",rating:"Bewertung",comment:"Kommentar",reviewPlaceholder:"Schreibe eine Bewertung...",sendReview:"Absenden",
 helpEyebrow:"WIR HELFEN DIR",supportTitle:"Support",ticketSubject:"Betreff",ticketSubjectPh:"z.B. Frage zum Deal",ticketMessage:"Nachricht",ticketMessagePh:"Beschreibe deine Frage...",createTicket:"Ticket erstellen",myTickets:"Meine Tickets",
 account:"KONTO",profileTitle:"Profil",myListings:"Meine Anzeigen",adminTitle:"Admin-Panel",adminWarning:"Admin-Rechte in diesem Mock werden clientseitig geprüft und sind kein sicherer Produktivschutz.",
@@ -92,7 +260,7 @@ brandSub:"COMMUNITY MARKET · DEMO",heroEyebrow:"COMMUNITY MARKETPLACE",heroTitl
 heroDesc:"SkinHub 是一个可以用 Telegram Stars 买卖皮肤的市场！",
 tabHome:"首页",tabSell:"出售",tabHowto:"如何运作",tabReviews:"评价",tabSupport:"支持",tabProfile:"个人",tabAdmin:"管理",
 discover:"发现",showcaseTitle:"社区橱窗",searchPlaceholder:"搜索...",filterAll:"全部",filterRifle:"步枪",filterPistol:"手枪",filterKnife:"刀具",filterOther:"其他",
-createListing:"创建列表",newListing:"新列表",selectSkin:"选择皮肤",category:"分类",priceStars:"价格（Telegram Stars）",addListing:"添加列表",
+createListing:"创建列表",newListing:"新列表",selectSkin:"选择皮肤",category:"分类",wear:"磨损",wearFN:"Factory New",wearMW:"Minimal Wear",wearFT:"Field-Tested",wearWW:"Well-Worn",wearBS:"Battle-Scarred",priceStars:"价格（Telegram Stars）",addListing:"添加列表",
 howtoEyebrow:"指南",howtoTitle:"如何运作",feedback:"社区反馈",reviewsTitle:"评价",leaveReview:"发表评价",rating:"评分",comment:"评论",reviewPlaceholder:"写下评价...",sendReview:"提交评价",
 helpEyebrow:"我们随时帮助",supportTitle:"支持",ticketSubject:"主题",ticketSubjectPh:"例如：交易相关问题",ticketMessage:"消息",ticketMessagePh:"描述你的问题...",createTicket:"创建工单",myTickets:"我的工单",
 account:"账户",profileTitle:"个人资料",myListings:"我的列表",adminTitle:"管理面板",adminWarning:"此演示中管理员权限在客户端检查，不适合生产环境的安全保护。",
@@ -107,7 +275,7 @@ brandSub:"COMMUNITY MARKET · DEMO",heroEyebrow:"COMMUNITY MARKETPLACE",heroTitl
 heroDesc:"SkinHub è un market dove puoi comprare/vendere skin con Telegram Stars!",
 tabHome:"Home",tabSell:"Vendi",tabHowto:"Come funziona",tabReviews:"Recensioni",tabSupport:"Supporto",tabProfile:"Profilo",tabAdmin:"Admin",
 discover:"SCOPRI",showcaseTitle:"Vetrina community",searchPlaceholder:"Cerca...",filterAll:"Tutti",filterRifle:"Fucili",filterPistol:"Pistole",filterKnife:"Coltelli",filterOther:"Altro",
-createListing:"CREA ANNUNCIO",newListing:"Nuovo annuncio",selectSkin:"Seleziona skin",category:"Categoria",priceStars:"Prezzo (Telegram Stars)",addListing:"Aggiungi annuncio",
+createListing:"CREA ANNUNCIO",newListing:"Nuovo annuncio",selectSkin:"Seleziona skin",category:"Categoria",wear:"Usura",wearFN:"Factory New",wearMW:"Minimal Wear",wearFT:"Field-Tested",wearWW:"Well-Worn",wearBS:"Battle-Scarred",priceStars:"Prezzo (Telegram Stars)",addListing:"Aggiungi annuncio",
 howtoEyebrow:"GUIDA",howtoTitle:"Come funziona",feedback:"FEEDBACK COMMUNITY",reviewsTitle:"Recensioni",leaveReview:"Lascia una recensione",rating:"Valutazione",comment:"Commento",reviewPlaceholder:"Scrivi una recensione...",sendReview:"Invia recensione",
 helpEyebrow:"SIAMO QUI PER AIUTARTI",supportTitle:"Supporto",ticketSubject:"Oggetto",ticketSubjectPh:"es. domanda su un affare",ticketMessage:"Messaggio",ticketMessagePh:"Descrivi la domanda...",createTicket:"Crea ticket",myTickets:"I miei ticket",
 account:"ACCOUNT",profileTitle:"Profilo",myListings:"I miei annunci",adminTitle:"Pannello admin",adminWarning:"I diritti admin in questo mock sono controllati lato client e non sono una protezione sicura in produzione.",
@@ -122,7 +290,7 @@ brandSub:"COMMUNITY MARKET · DEMO",heroEyebrow:"COMMUNITY MARKETPLACE",heroTitl
 heroDesc:"SkinHubはTelegram Starsでスキンを売買できるマーケットです！",
 tabHome:"ホーム",tabSell:"出品",tabHowto:"使い方",tabReviews:"レビュー",tabSupport:"サポート",tabProfile:"プロフィール",tabAdmin:"管理",
 discover:"発見",showcaseTitle:"コミュニティショーケース",searchPlaceholder:"検索...",filterAll:"すべて",filterRifle:"ライフル",filterPistol:"ピストル",filterKnife:"ナイフ",filterOther:"その他",
-createListing:"出品作成",newListing:"新規出品",selectSkin:"スキンを選択",category:"カテゴリ",priceStars:"価格（Telegram Stars）",addListing:"出品を追加",
+createListing:"出品作成",newListing:"新規出品",selectSkin:"スキンを選択",category:"カテゴリ",wear:"摩耗",wearFN:"Factory New",wearMW:"Minimal Wear",wearFT:"Field-Tested",wearWW:"Well-Worn",wearBS:"Battle-Scarred",priceStars:"価格（Telegram Stars）",addListing:"出品を追加",
 howtoEyebrow:"ガイド",howtoTitle:"使い方",feedback:"コミュニティフィードバック",reviewsTitle:"レビュー",leaveReview:"レビューを書く",rating:"評価",comment:"コメント",reviewPlaceholder:"レビューを書く...",sendReview:"送信",
 helpEyebrow:"お手伝いします",supportTitle:"サポート",ticketSubject:"件名",ticketSubjectPh:"例：取引に関する質問",ticketMessage:"メッセージ",ticketMessagePh:"質問を記入...",createTicket:"チケット作成",myTickets:"自分のチケット",
 account:"アカウント",profileTitle:"プロフィール",myListings:"自分の出品",adminTitle:"管理パネル",adminWarning:"このモックでは管理者権限はクライアント側で確認され、本番の安全な保護ではありません。",
@@ -138,6 +306,20 @@ for (const [lang, ov] of Object.entries(HOWTO)) {
   if (!I18N[lang]) I18N[lang] = {};
   Object.assign(I18N[lang], ov);
 }
+
+const AUTH_I18N = {
+  ru:{authLogin:"Вход",authRegister:"Регистрация",authLoginBtn:"Войти",authRegisterBtn:"Создать аккаунт",authLogout:"Выйти",authNick:"Ник",authPass:"Пароль",authPass2:"Повтор пароля",authNeedFields:"Введите ник и пароль",authPassMatch:"Пароли не совпадают",authPassShort:"Пароль минимум 6 символов",authNickShort:"Ник минимум 3 символа",authOkLogin:"Вход выполнен",authOkReg:"Аккаунт создан",authErr:"Ошибка",authGuest:"Гость"},
+  en:{authLogin:"Login",authRegister:"Sign up",authLoginBtn:"Log in",authRegisterBtn:"Create account",authLogout:"Log out",authNick:"Nickname",authPass:"Password",authPass2:"Repeat password",authNeedFields:"Enter nickname and password",authPassMatch:"Passwords do not match",authPassShort:"Password at least 6 characters",authNickShort:"Nickname at least 3 characters",authOkLogin:"Logged in",authOkReg:"Account created",authErr:"Error",authGuest:"Guest"},
+  de:{authLogin:"Login",authRegister:"Registrieren",authLoginBtn:"Einloggen",authRegisterBtn:"Konto erstellen",authLogout:"Abmelden",authNick:"Nickname",authPass:"Passwort",authPass2:"Passwort wiederholen",authNeedFields:"Nickname und Passwort eingeben",authPassMatch:"Passwörter stimmen nicht überein",authPassShort:"Mindestens 6 Zeichen",authNickShort:"Mindestens 3 Zeichen",authOkLogin:"Eingeloggt",authOkReg:"Konto erstellt",authErr:"Fehler",authGuest:"Gast"},
+  zh:{authLogin:"登录",authRegister:"注册",authLoginBtn:"登录",authRegisterBtn:"创建账户",authLogout:"退出",authNick:"昵称",authPass:"密码",authPass2:"确认密码",authNeedFields:"请输入昵称和密码",authPassMatch:"两次密码不一致",authPassShort:"密码至少6位",authNickShort:"昵称至少3个字符",authOkLogin:"已登录",authOkReg:"账户已创建",authErr:"错误",authGuest:"游客"},
+  it:{authLogin:"Accedi",authRegister:"Registrati",authLoginBtn:"Entra",authRegisterBtn:"Crea account",authLogout:"Esci",authNick:"Nickname",authPass:"Password",authPass2:"Ripeti password",authNeedFields:"Inserisci nickname e password",authPassMatch:"Le password non coincidono",authPassShort:"Minimo 6 caratteri",authNickShort:"Minimo 3 caratteri",authOkLogin:"Accesso effettuato",authOkReg:"Account creato",authErr:"Errore",authGuest:"Ospite"},
+  ja:{authLogin:"ログイン",authRegister:"登録",authLoginBtn:"ログイン",authRegisterBtn:"アカウント作成",authLogout:"ログアウト",authNick:"ニックネーム",authPass:"パスワード",authPass2:"パスワード再入力",authNeedFields:"ニックネームとパスワードを入力",authPassMatch:"パスワードが一致しません",authPassShort:"パスワードは6文字以上",authNickShort:"ニックネームは3文字以上",authOkLogin:"ログインしました",authOkReg:"アカウント作成",authErr:"エラー",authGuest:"ゲスト"}
+};
+for (const [lang, ov] of Object.entries(AUTH_I18N)) {
+  if (!I18N[lang]) I18N[lang] = {};
+  Object.assign(I18N[lang], ov);
+}
+
 let SKINS = [];
 
 const CSGO_SKINS_URL = "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json";
@@ -191,7 +373,15 @@ function applyI18n() {
       if (map[opt.value]) opt.textContent = t(map[opt.value]);
     });
   }
+  const wearSelect = document.getElementById("itemWear");
+  if (wearSelect) {
+    [...wearSelect.options].forEach((opt) => {
+      const map = { FN: "wearFN", MW: "wearMW", FT: "wearFT", WW: "wearWW", BS: "wearBS" };
+      if (map[opt.value]) opt.textContent = t(map[opt.value]);
+    });
+  }
   populateSkins();
+  updateAuthUI();
   renderCatalog(); renderReviews(); renderTickets();
   if (document.getElementById("profile")?.classList.contains("active")) renderMyListings();
   if (isAdmin && document.getElementById("admin")?.classList.contains("active")) renderAdmin();
@@ -230,8 +420,13 @@ function mapListing(row) {
     image: resolveSkinImage(row.name, row.skin_id, row.image || ""),
     owner: row.owner,
     ownerName: row.owner_name || "",
-    skinId: row.skin_id || ""
+    skinId: row.skin_id || "",
+    wear: row.wear || ""
   };
+}
+function wearLabel(code) {
+  const map = { FN: "wearFN", MW: "wearMW", FT: "wearFT", WW: "wearWW", BS: "wearBS" };
+  return map[code] ? t(map[code]) : (code || "");
 }
 function mapReview(row) {
   return { id: row.id, name: row.name, rating: Number(row.rating), text: row.text };
@@ -345,7 +540,7 @@ function renderCatalog() {
       <div class="item-art">${x.image ? `<img src="${escapeAttr(x.image)}" alt="${escapeAttr(x.name)}" onerror="this.style.display='none';this.parentElement.textContent='✦'">` : "✦"}</div>
       <div class="item-body">
         <h3>${escapeHtml(x.name)}</h3>
-        <div class="muted">${t("listingLabel")} · ${categoryName(x.category)}</div>
+        <div class="muted">${t("listingLabel")} · ${categoryName(x.category)}${x.wear ? " · " + wearLabel(x.wear) : ""}</div>
         <div class="price">${Number(x.price)} ${t("stars")}</div>
       </div>
     </article>`).join("") || `<p class="muted">${t("nothingFound")}</p>`;
@@ -366,14 +561,16 @@ document.getElementById("addListing").onclick = async () => {
   const skin = SKINS.find((s) => s.id === skinId);
   const price = Number(document.getElementById("itemPrice").value);
   if (!skin || !Number.isFinite(price) || price <= 0) { alert(t("fillSkinPrice")); return; }
+  const wear = document.getElementById("itemWear")?.value || "FT";
   const payload = {
     name: skin.name,
     category: document.getElementById("itemCategory").value || skin.category,
     price,
     image: skin.image,
-    owner: userId,
-    owner_name: userName,
-    skin_id: skin.id
+    owner: currentOwnerId(),
+    owner_name: currentUsername(),
+    skin_id: skin.id,
+    wear
   };
   try {
     if (sbEnabled) {
@@ -407,7 +604,7 @@ function renderReviews() {
 document.getElementById("addReview").onclick = async () => {
   const textVal = document.getElementById("reviewText").value.trim();
   if (!textVal) { alert(t("writeReview")); return; }
-  const payload = { name: userName, rating: Number(document.getElementById("reviewRating").value), text: textVal };
+  const payload = { name: currentUsername(), rating: Number(document.getElementById("reviewRating").value), text: textVal };
   try {
     if (sbEnabled) {
       const rows = await sb("reviews", { method: "POST", body: JSON.stringify(payload) });
@@ -432,14 +629,14 @@ function ticketHtml(ticket) {
   }</div>`;
 }
 function renderTickets() {
-  const mine = tickets.filter((x) => x.owner === userId);
+  const mine = tickets.filter((x) => x.owner === currentOwnerId() || x.owner === userId);
   document.getElementById("ticketList").innerHTML = mine.map(ticketHtml).join("") || `<p class="muted">${t("noTickets")}</p>`;
 }
 document.getElementById("createTicket").onclick = async () => {
   const subject = document.getElementById("ticketSubject").value.trim();
   const textVal = document.getElementById("ticketText").value.trim();
   if (!subject || !textVal) { alert(t("fillTicket")); return; }
-  const payload = { owner: userId, name: userName, subject, text: textVal, status: t("statusNew"), reply: "" };
+  const payload = { owner: currentOwnerId(), name: currentUsername(), subject, text: textVal, status: t("statusNew"), reply: "" };
   try {
     if (sbEnabled) {
       const rows = await sb("tickets", { method: "POST", body: JSON.stringify(payload) });
@@ -462,8 +659,8 @@ document.getElementById("createTicket").onclick = async () => {
 
 function renderMyListings() {
   document.getElementById("myListings").innerHTML =
-    listings.filter((x) => x.owner === userId).map((x) =>
-      `<div class="entry"><h3>${escapeHtml(x.name)}</h3><p>${x.price} ${t("stars")}</p></div>`
+    listings.filter((x) => x.owner === currentOwnerId() || x.owner === userId).map((x) =>
+      `<div class="entry"><h3>${escapeHtml(x.name)}</h3><p>${x.wear ? wearLabel(x.wear) + " · " : ""}${x.price} ${t("stars")}</p></div>`
     ).join("") || `<p class="muted">${t("noListings")}</p>`;
 }
 

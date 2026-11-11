@@ -18,7 +18,7 @@
     </div>
     <div class="header-right">
       <select id="langSelect" class="lang-select" aria-label="Language"></select>
-      <div class="user" id="userLabel">Guest</div>
+      <button type="button" class="user auth-btn" id="authBtn">Guest</button>
     </div>
   </header>
 
@@ -81,6 +81,16 @@
             <option value="pistol" data-i18n="filterPistol">Пистолеты</option>
             <option value="knife" data-i18n="filterKnife">Ножи</option>
             <option value="other" data-i18n="filterOther">Другое</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="wear">Износ</span>
+          <select id="itemWear">
+            <option value="FN" data-i18n="wearFN">Factory New</option>
+            <option value="MW" data-i18n="wearMW">Minimal Wear</option>
+            <option value="FT" selected data-i18n="wearFT">Field-Tested</option>
+            <option value="WW" data-i18n="wearWW">Well-Worn</option>
+            <option value="BS" data-i18n="wearBS">Battle-Scarred</option>
           </select>
         </label>
         <label>
@@ -200,6 +210,30 @@
       </div>
     </section>
   </main>
+
+
+  <div id="authModal" class="modal hidden">
+    <div class="modal-card">
+      <button type="button" class="modal-close" id="authClose">×</button>
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-auth="login" id="tabLogin" data-i18n="authLogin">Вход</button>
+        <button type="button" class="auth-tab" data-auth="register" id="tabRegister" data-i18n="authRegister">Регистрация</button>
+      </div>
+      <div id="authLoginPane" class="auth-pane">
+        <label><span data-i18n="authNick">Ник</span><input id="loginNick" autocomplete="username"></label>
+        <label><span data-i18n="authPass">Пароль</span><input id="loginPass" type="password" autocomplete="current-password"></label>
+        <button type="button" class="primary" id="doLogin" data-i18n="authLoginBtn">Войти</button>
+      </div>
+      <div id="authRegisterPane" class="auth-pane hidden">
+        <label><span data-i18n="authNick">Ник</span><input id="regNick" autocomplete="username"></label>
+        <label><span data-i18n="authPass">Пароль</span><input id="regPass" type="password" autocomplete="new-password"></label>
+        <label><span data-i18n="authPass2">Повтор пароля</span><input id="regPass2" type="password" autocomplete="new-password"></label>
+        <button type="button" class="primary" id="doRegister" data-i18n="authRegisterBtn">Создать аккаунт</button>
+      </div>
+      <p class="muted" id="authError"></p>
+      <button type="button" class="ghost hidden" id="doLogout" data-i18n="authLogout">Выйти</button>
+    </div>
+  </div>
 
   <footer>SKINHUB <span>·</span> TELEGRAM STARS MARKET</footer>
   <script src="app.js"></script>
