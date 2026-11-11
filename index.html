@@ -27,7 +27,7 @@
       <div class="eyebrow" id="heroEyebrow">COMMUNITY MARKETPLACE</div>
       <h1 id="heroTitle">ТВОЯ ИГРОВАЯ<br><span>ВИТРИНА</span></h1>
       <p id="heroDesc">SkinHub — это маркет, где вы можете приобрести/продать скины за Telegram Stars!</p>
-      <div class="hero-note" id="heroNote">Оплата и передача — через Telegram Stars и Steam Trade</div>
+      <div class="hero-note" id="heroNote">Сделки через админа @xyrexon · Telegram Stars + Steam</div>
     </section>
 
     <nav class="tabs">
@@ -64,9 +64,11 @@
       <div class="panel form">
         <label>
           <span data-i18n="selectSkin">Выберите скин</span>
-          <select id="itemSkin">
+          <input id="skinSearch" type="search" autocomplete="off" data-i18n-placeholder="skinSearchPh" placeholder="Поиск скина (AK, AWP, Karambit...)">
+          <select id="itemSkin" size="8" class="skin-select">
             <option value="">—</option>
           </select>
+          <span class="muted" id="skinCount"></span>
         </label>
         <div id="skinPreview" class="skin-preview hidden">
           <img id="skinPreviewImg" alt="">
@@ -86,30 +88,34 @@
           <input id="itemPrice" type="number" min="1" placeholder="100">
         </label>
         <button class="primary" id="addListing" data-i18n="addListing">Добавить объявление</button>
-        <p class="muted" data-i18n="listingHint">Объявление появится в вашей витрине. Покупатели увидят его в каталоге приложения.</p>
+        <p class="muted" data-i18n="listingHint">После публикации свяжитесь с @xyrexon и передайте скин админу.</p>
       </div>
     </section>
 
     <section id="howto" class="page">
       <div class="eyebrow" data-i18n="howtoEyebrow">GUIDE</div>
-      <h2 data-i18n="howtoTitle">Оплата и передача</h2>
+      <h2 data-i18n="howtoTitle">Как это работает</h2>
       <div class="panel stack howto">
         <div class="entry">
-          <h3 data-i18n="howto1Title">1. Выбор скина</h3>
-          <p data-i18n="howto1Text">Продавец выбирает скин из списка — фото подставляется автоматически. Покупатель видит объявление в каталоге.</p>
+          <h3 data-i18n="howto1Title">1. Продажа скина</h3>
+          <p data-i18n="howto1Text">Выберите скин в приложении и выставьте объявление. Чтобы продать скин, отправьте его админу @xyrexon — с ним можно связаться в Telegram.</p>
         </div>
         <div class="entry">
-          <h3 data-i18n="howto2Title">2. Оплата Telegram Stars</h3>
-          <p data-i18n="howto2Text">Сделка оформляется за Telegram Stars. После согласования условий покупатель отправляет Stars продавцу через Telegram.</p>
+          <h3 data-i18n="howto2Title">2. Когда ваш скин купили</h3>
+          <p data-i18n="howto2Text">Если ваш скин купили, тот же админ @xyrexon отправляет вам Telegram Stars за продажу.</p>
         </div>
         <div class="entry">
-          <h3 data-i18n="howto3Title">3. Передача в Steam</h3>
-          <p data-i18n="howto3Text">После оплаты продавец отправляет трейд-оффер в Steam. Покупатель принимает предмет. При спорных ситуациях пишите в поддержку.</p>
+          <h3 data-i18n="howto3Title">3. Покупка скина</h3>
+          <p data-i18n="howto3Text">При покупке вы отправляете Stars админу @xyrexon, а он передаёт вам скин через Steam Trade.</p>
         </div>
         <div class="entry">
           <h3 data-i18n="howto4Title">4. Поддержка</h3>
-          <p data-i18n="howto4Text">Вопросы по сделкам и безопасности — @SkinHub_support</p>
+          <p data-i18n="howto4Text">Все сделки и вопросы — через админа @xyrexon. Дополнительно: @SkinHub_support</p>
         </div>
+      </div>
+      <div class="panel support-card">
+        <p data-i18n="adminContactLabel">Админ для сделок:</p>
+        <a class="primary support-link" href="https://t.me/xyrexon" target="_blank" rel="noopener">@xyrexon</a>
       </div>
     </section>
 
@@ -137,8 +143,9 @@
       <div class="eyebrow" data-i18n="helpEyebrow">WE ARE HERE TO HELP</div>
       <h2 data-i18n="supportTitle">Поддержка</h2>
       <div class="panel support-card">
-        <p data-i18n="supportIntro">Нужна помощь со сделкой, оплатой Stars или передачей скина?</p>
-        <a class="primary support-link" href="https://t.me/SkinHub_support" target="_blank" rel="noopener">@SkinHub_support</a>
+        <p data-i18n="supportIntro">Сделки, Stars и передача скинов — через админа:</p>
+        <a class="primary support-link" href="https://t.me/xyrexon" target="_blank" rel="noopener">@xyrexon</a>
+        <p class="muted" data-i18n="supportExtra">Доп. поддержка: @SkinHub_support</p>
       </div>
       <div class="panel form">
         <label>
@@ -179,7 +186,7 @@
         <h3 data-i18n="adminAddReview">Добавить отзыв от имени магазина</h3>
         <label><span data-i18n="name">Имя</span><input id="adminReviewName" placeholder="Buyer"></label>
         <label><span data-i18n="text">Текст</span><textarea id="adminReviewText" rows="3"></textarea></label>
-        <button class="primary" id="adminAddReview" data-i18n="addReviewBtn">Добавить отзыв</button>
+        <button class="primary" id="adminAddReviewBtn" data-i18n="addReviewBtn">Добавить отзыв</button>
       </div>
       <div class="panel">
         <h3 data-i18n="userTickets">Обращения пользователей</h3>

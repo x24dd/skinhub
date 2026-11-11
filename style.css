@@ -25,6 +25,7 @@ h2{font-size:25px;letter-spacing:-.8px;margin:8px 0 20px}
 input,select,textarea{width:100%;background:#0e0e17;border:1px solid #323044;border-radius:9px;padding:12px;color:white;font:inherit;font-size:12px;outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--purple)}
 label{display:grid;gap:7px;color:#c5c2d2;font-size:11px;font-weight:600}
+.skin-select{height:180px;overflow:auto}
 .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
 .item{background:linear-gradient(160deg,#1b1b29,#12121b);border:1px solid var(--line);border-radius:15px;overflow:hidden}
 .item-art{height:130px;background:radial-gradient(circle at 50% 50%,#62428b66,transparent 60%),linear-gradient(135deg,#262139,#12121a);display:grid;place-items:center;color:#c8adff;font-size:34px}
