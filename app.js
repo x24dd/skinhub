@@ -11,7 +11,7 @@ if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
         userLabel.textContent = user.first_name; // Здесь подставится ваше имя из Telegram
     }
 }
-const tg = window.Telegram?.WebApp;
+tg = window.Telegram?.WebApp;
 tg?.ready();
 tg?.expand();
 
