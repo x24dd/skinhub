@@ -71,7 +71,7 @@ nothingFound:"Nothing found.",noListings:"You have no listings yet.",noTickets:"
 fillSkinPrice:"Select a skin and enter a positive Stars price.",listingAdded:"Listing added. Contact @xyrexon to transfer the skin.",writeReview:"Please write a review.",fillTicket:"Fill in subject and message.",ticketSaved:"Ticket saved.",
 noAccess:"Access denied.",fillNameText:"Fill in name and text.",reviewAdded:"Review added.",checkIdReply:"Check ticket ID and reply.",replySaved:"Reply saved.",openTelegram:"Open the app via Telegram",localMode:"Local mode outside Telegram",
 statusNew:"New",statusReplied:"Replied",supportReply:"Support reply",skinsShown:"skins"
-},ыы
+},
 de:{
 brandSub:"COMMUNITY MARKET · DEMO",heroEyebrow:"COMMUNITY MARKETPLACE",heroTitle:"DEINE GAMING-<br><span>VITRINE</span>",
 heroDesc:"SkinHub ist ein Marktplatz, auf dem du Skins für Telegram Stars kaufen/verkaufen kannst!",
