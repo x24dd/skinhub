@@ -1,33 +1,23 @@
-// 1. Подключаемся к Telegram WebApp
+// 1. Подключаемся к Telegram WebApp и инициализируем
 const tg = window.Telegram?.WebApp;
+tg?.ready();
+tg?.expand();
 
-// 2. Проверяем, запущен ли сайт внутри Telegram и есть ли данные юзера
-if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-    const user = tg.initDataUnsafe.user;
-    
-    // 3. Ищем нашу кнопку в HTML и меняем "Guest" на имя пользователя
-    const userLabel = document.getElementById("userLabel");
-    if (userLabel) {
-        userLabel.textContent = user.first_name; // Здесь подставится ваше имя из Telegram
-    }
-}
-const user = tg?.initDataUnsafe?.user;
+// 2. Безопасно получаем данные пользователя и выводим имя в кнопку
+const user = tg?.initDataUnsafe?.user || null;
 if (user) {
     const userLabel = document.getElementById("userLabel");
     if (userLabel) {
         userLabel.textContent = user.first_name;
     }
 }
-tg?.ready();
-tg?.expand();
 
+// 3. Параметры URL и настройки пользователя
 const params = new URLSearchParams(location.search);
 const ADMIN_ID = params.get("demo_admin_id") || "";
-const user = tg?.initDataUnsafe?.user || null;
 const userId = user?.id ? String(user.id) : "local-demo";
 const userName = user ? user.first_name + (user.last_name ? " " + user.last_name : "") : "Guest";
 const isAdmin = !!user && ADMIN_ID && String(user.id) === String(ADMIN_ID);
-
 /* ========== SUPABASE ==========
   1. Создай проект на https://supabase.com
   2. SQL Editor → вставь supabase_setup.sql → Run
