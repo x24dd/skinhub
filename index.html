@@ -19,9 +19,6 @@
     <div class="header-right">
       <select id="langSelect" class="lang-select" aria-label="Language"></select>
       <button type="button" class="user auth-btn" id="authBtn"><span id="userLabel">Guest</span></button>
-<button type="button" class="user auth-btn" id="authBtn">
-  <span id="userLabel">Guest</span>
-</button>
     </div>
   </header>
 
@@ -30,7 +27,7 @@
       <div class="eyebrow" id="heroEyebrow">COMMUNITY MARKETPLACE</div>
       <h1 id="heroTitle">ТВОЯ ИГРОВАЯ<br><span>ВИТРИНА</span></h1>
       <p id="heroDesc">SkinHub — это маркет, где вы можете приобрести/продать скины за Telegram Stars!</p>
-      <div class="hero-note" id="heroNote">Сделки через админа @xyrexon · Telegram Stars + Steam</div>
+      <div class="hero-note" id="heroNote">Сделки через админа @skinhub_storage · Telegram Stars + Steam</div>
     </section>
 
     <nav class="tabs">
@@ -98,10 +95,11 @@
         </label>
         <label>
           <span data-i18n="priceStars">Цена (Telegram Stars)</span>
-          <input id="itemPrice" type="number" min="1" placeholder="100">
+          <input id="itemPrice" type="number" min="1" step="1" placeholder="100">
+          <p class="muted" id="commissionPreview">Комиссия 20% · продавец получит 80% от цены</p>
         </label>
         <button class="primary" id="addListing" data-i18n="addListing">Добавить объявление</button>
-        <p class="muted" data-i18n="listingHint">После публикации свяжитесь с @xyrexon и передайте скин админу.</p>
+        <p class="muted" data-i18n="listingHint">После отправки объявление пройдёт модерацию. Комиссия магазина — 20%.</p>
       </div>
     </section>
 
@@ -111,24 +109,24 @@
       <div class="panel stack howto">
         <div class="entry">
           <h3 data-i18n="howto1Title">1. Продажа скина</h3>
-          <p data-i18n="howto1Text">Выберите скин в приложении и выставьте объявление. Чтобы продать скин, отправьте его админу @xyrexon — с ним можно связаться в Telegram.</p>
+          <p data-i18n="howto1Text">Выберите скин в приложении и выставьте объявление. Чтобы продать скин, отправьте его администратору @skinhub_storage — с ним можно связаться в Telegram.</p>
         </div>
         <div class="entry">
           <h3 data-i18n="howto2Title">2. Когда ваш скин купили</h3>
-          <p data-i18n="howto2Text">Если ваш скин купили, тот же админ @xyrexon отправляет вам Telegram Stars за продажу.</p>
+          <p data-i18n="howto2Text">Если ваш скин купили, тот же админ @skinhub_storage отправляет вам Telegram Stars за продажу.</p>
         </div>
         <div class="entry">
           <h3 data-i18n="howto3Title">3. Покупка скина</h3>
-          <p data-i18n="howto3Text">При покупке вы отправляете Stars админу @xyrexon, а он передаёт вам скин через Steam Trade.</p>
+          <p data-i18n="howto3Text">При покупке вы отправляете Stars админу @skinhub_storage, а он передаёт вам скин через Steam Trade.</p>
         </div>
         <div class="entry">
           <h3 data-i18n="howto4Title">4. Поддержка</h3>
-          <p data-i18n="howto4Text">Все сделки и вопросы — через админа @xyrexon. Дополнительно: @SkinHub_support</p>
+          <p data-i18n="howto4Text">Все сделки и вопросы — через админа @skinhub_storage. Дополнительно: @SkinHub_support</p>
         </div>
       </div>
       <div class="panel support-card">
         <p data-i18n="adminContactLabel">Админ для сделок:</p>
-        <a class="primary support-link" href="https://t.me/xyrexon" target="_blank" rel="noopener">@xyrexon</a>
+        <a class="primary support-link" href="https://t.me/xyrexon" target="_blank" rel="noopener">@skinhub_storage</a>
       </div>
     </section>
 
@@ -157,7 +155,7 @@
       <h2 data-i18n="supportTitle">Поддержка</h2>
       <div class="panel support-card">
         <p data-i18n="supportIntro">Сделки, Stars и передача скинов — через админа:</p>
-        <a class="primary support-link" href="https://t.me/xyrexon" target="_blank" rel="noopener">@xyrexon</a>
+        <a class="primary support-link" href="https://t.me/xyrexon" target="_blank" rel="noopener">@skinhub_storage</a>
         <p class="muted" data-i18n="supportExtra">Доп. поддержка: @SkinHub_support</p>
       </div>
       <div class="panel form">
@@ -194,7 +192,11 @@
     <section id="admin" class="page">
       <div class="eyebrow">CONTROL CENTER</div>
       <h2 data-i18n="adminTitle">Админ-панель</h2>
-      <div class="warning" data-i18n="adminWarning">Права администратора в этом макете проверяются на клиенте и не являются безопасной защитой для продакшена.</div>
+      <div class="warning">Новые объявления появляются здесь до одобрения. Только назначенный администратор может принимать или отклонять скины.</div>
+      <div class="panel">
+        <h3>Объявления на модерации</h3>
+        <div id="adminListings" class="stack"></div>
+      </div>
       <div class="panel form">
         <h3 data-i18n="adminAddReview">Добавить отзыв от имени магазина</h3>
         <label><span data-i18n="name">Имя</span><input id="adminReviewName" placeholder="Buyer"></label>

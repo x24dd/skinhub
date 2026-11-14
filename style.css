@@ -77,3 +77,10 @@ footer span{color:var(--purple)}
 .auth-pane.hidden{display:none}
 .ghost{border:1px solid var(--line);background:transparent;color:#c8b9ff;border-radius:9px;padding:12px;font-weight:700;cursor:pointer}
 #authError{color:#ff8f8f;min-height:16px}
+
+/* Listing moderation and owner controls */
+.listing-manage { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.listing-manage > div { min-width:0; }
+.admin-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+button.danger { background:#5a2630; color:#fff; border:1px solid #a94b5c; }
+button.danger:hover { filter:brightness(1.12); }

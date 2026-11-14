@@ -15,10 +15,10 @@ if (user) {
 
 // 3. Параметры
 const params = new URLSearchParams(location.search);
-const ADMIN_ID = params.get("demo_admin_id") || "";
+
 const userId = user?.id ? String(user.id) : "local-demo";
 const userName = user ? user.first_name + (user.last_name ? " " + user.last_name : "") : "Guest";
-const isAdmin = !!user && ADMIN_ID && String(user.id) === String(ADMIN_ID);
+let isAdmin = false;
 /* ========== SUPABASE ==========
   1. Создай проект на https://supabase.com
   2. SQL Editor → вставь supabase_setup.sql → Run
@@ -34,7 +34,7 @@ async function sb(path, options = {}) {
     ...options,
     headers: {
       apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Authorization: `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`,
       "Content-Type": "application/json",
       Prefer: options.prefer || "return=representation",
       ...(options.headers || {})
@@ -149,6 +149,8 @@ document.getElementById("doLogin")?.addEventListener("click", async () => {
     };
     write("sh_session", session);
     updateAuthUI();
+    await refreshAdminRole();
+    await loadAllData();
     err.textContent = t("authOkLogin");
     setTimeout(closeAuthModal, 500);
   } catch (e) {
@@ -182,6 +184,8 @@ document.getElementById("doRegister")?.addEventListener("click", async () => {
       };
       write("sh_session", session);
       updateAuthUI();
+      await refreshAdminRole();
+      await loadAllData();
       err.textContent = t("authOkReg");
       setTimeout(closeAuthModal, 600);
     } else if (data.user || data.id) {
@@ -198,6 +202,8 @@ document.getElementById("doRegister")?.addEventListener("click", async () => {
       };
       write("sh_session", session);
       updateAuthUI();
+      await refreshAdminRole();
+      await loadAllData();
       err.textContent = t("authOkReg");
       setTimeout(closeAuthModal, 600);
     } else {
@@ -210,6 +216,8 @@ document.getElementById("doRegister")?.addEventListener("click", async () => {
 
 document.getElementById("doLogout")?.addEventListener("click", () => {
   session = null;
+  isAdmin = false;
+  const adminTab = document.getElementById("adminTab"); if (adminTab) adminTab.hidden = true;
   localStorage.removeItem("sh_session");
   updateAuthUI();
   closeAuthModal();
@@ -231,7 +239,7 @@ helpEyebrow:"WE ARE HERE TO HELP",supportTitle:"Поддержка",ticketSubjec
 account:"ACCOUNT",profileTitle:"Профиль",myListings:"Мои объявления",adminTitle:"Админ-панель",adminWarning:"Права администратора в этом макете проверяются на клиенте и не являются безопасной защитой для продакшена.",
 adminAddReview:"Добавить отзыв от имени магазина",name:"Имя",text:"Текст",addReviewBtn:"Добавить отзыв",userTickets:"Обращения пользователей",replyTicket:"Ответить на обращение",reply:"Ответ",saveReply:"Сохранить ответ",
 nothingFound:"Ничего не найдено.",noListings:"Ты ещё не добавлял объявления.",noTickets:"У тебя пока нет обращений.",noAdminTickets:"Обращений пока нет.",listingLabel:"Объявление",stars:"Stars",
-fillSkinPrice:"Выберите скин и укажите положительную цену в Stars.",listingAdded:"Объявление добавлено. Свяжитесь с @xyrexon для передачи скина.",writeReview:"Напиши текст отзыва.",fillTicket:"Заполни тему и сообщение.",ticketSaved:"Обращение сохранено.",
+fillSkinPrice:"Выберите скин и укажите положительную цену в Stars.",listingAdded:"Объявление добавлено. Свяжитесь с @skinhub_storage для передачи скина.",writeReview:"Напиши текст отзыва.",fillTicket:"Заполни тему и сообщение.",ticketSaved:"Обращение сохранено.",
 noAccess:"Нет доступа.",fillNameText:"Заполни имя и текст.",reviewAdded:"Отзыв добавлен.",checkIdReply:"Проверь ID обращения и ответ.",replySaved:"Ответ сохранён.",openTelegram:"Открой приложение через Telegram",localMode:"Локальный режим вне Telegram",
 statusNew:"Новое",statusReplied:"Ответ дан",supportReply:"Ответ поддержки",skinsShown:"скинов"
 },
@@ -246,7 +254,7 @@ helpEyebrow:"WE ARE HERE TO HELP",supportTitle:"Support",ticketSubject:"Subject"
 account:"ACCOUNT",profileTitle:"Profile",myListings:"My listings",adminTitle:"Admin panel",adminWarning:"Admin rights in this mock are checked on the client and are not a secure production guard.",
 adminAddReview:"Add store review",name:"Name",text:"Text",addReviewBtn:"Add review",userTickets:"User tickets",replyTicket:"Reply to ticket",reply:"Reply",saveReply:"Save reply",
 nothingFound:"Nothing found.",noListings:"You have no listings yet.",noTickets:"You have no tickets yet.",noAdminTickets:"No tickets yet.",listingLabel:"Listing",stars:"Stars",
-fillSkinPrice:"Select a skin and enter a positive Stars price.",listingAdded:"Listing added. Contact @xyrexon to transfer the skin.",writeReview:"Please write a review.",fillTicket:"Fill in subject and message.",ticketSaved:"Ticket saved.",
+fillSkinPrice:"Select a skin and enter a positive Stars price.",listingAdded:"Listing added. Contact @skinhub_storage to transfer the skin.",writeReview:"Please write a review.",fillTicket:"Fill in subject and message.",ticketSaved:"Ticket saved.",
 noAccess:"Access denied.",fillNameText:"Fill in name and text.",reviewAdded:"Review added.",checkIdReply:"Check ticket ID and reply.",replySaved:"Reply saved.",openTelegram:"Open the app via Telegram",localMode:"Local mode outside Telegram",
 statusNew:"New",statusReplied:"Replied",supportReply:"Support reply",skinsShown:"skins"
 },
@@ -261,7 +269,7 @@ helpEyebrow:"WIR HELFEN DIR",supportTitle:"Support",ticketSubject:"Betreff",tick
 account:"KONTO",profileTitle:"Profil",myListings:"Meine Anzeigen",adminTitle:"Admin-Panel",adminWarning:"Admin-Rechte in diesem Mock werden clientseitig geprüft und sind kein sicherer Produktivschutz.",
 adminAddReview:"Shop-Bewertung hinzufügen",name:"Name",text:"Text",addReviewBtn:"Bewertung hinzufügen",userTickets:"Nutzer-Tickets",replyTicket:"Auf Ticket antworten",reply:"Antwort",saveReply:"Antwort speichern",
 nothingFound:"Nichts gefunden.",noListings:"Du hast noch keine Anzeigen.",noTickets:"Du hast noch keine Tickets.",noAdminTickets:"Noch keine Tickets.",listingLabel:"Anzeige",stars:"Stars",
-fillSkinPrice:"Wähle einen Skin und gib einen positiven Stars-Preis ein.",listingAdded:"Anzeige hinzugefügt. Kontaktiere @xyrexon für den Transfer.",writeReview:"Bitte Bewertungstext eingeben.",fillTicket:"Betreff und Nachricht ausfüllen.",ticketSaved:"Ticket gespeichert.",
+fillSkinPrice:"Wähle einen Skin und gib einen positiven Stars-Preis ein.",listingAdded:"Anzeige hinzugefügt. Kontaktiere @skinhub_storage für den Transfer.",writeReview:"Bitte Bewertungstext eingeben.",fillTicket:"Betreff und Nachricht ausfüllen.",ticketSaved:"Ticket gespeichert.",
 noAccess:"Kein Zugriff.",fillNameText:"Name und Text ausfüllen.",reviewAdded:"Bewertung hinzugefügt.",checkIdReply:"Ticket-ID und Antwort prüfen.",replySaved:"Antwort gespeichert.",openTelegram:"App über Telegram öffnen",localMode:"Lokaler Modus außerhalb von Telegram",
 statusNew:"Neu",statusReplied:"Beantwortet",supportReply:"Support-Antwort",skinsShown:"Skins"
 },
@@ -276,7 +284,7 @@ helpEyebrow:"我们随时帮助",supportTitle:"支持",ticketSubject:"主题",ti
 account:"账户",profileTitle:"个人资料",myListings:"我的列表",adminTitle:"管理面板",adminWarning:"此演示中管理员权限在客户端检查，不适合生产环境的安全保护。",
 adminAddReview:"添加商店评价",name:"姓名",text:"文本",addReviewBtn:"添加评价",userTickets:"用户工单",replyTicket:"回复工单",reply:"回复",saveReply:"保存回复",
 nothingFound:"未找到。",noListings:"你还没有列表。",noTickets:"你还没有工单。",noAdminTickets:"暂无工单。",listingLabel:"列表",stars:"Stars",
-fillSkinPrice:"请选择皮肤并输入正数 Stars 价格。",listingAdded:"列表已添加。请联系 @xyrexon 转移皮肤。",writeReview:"请填写评价内容。",fillTicket:"请填写主题和消息。",ticketSaved:"工单已保存。",
+fillSkinPrice:"请选择皮肤并输入正数 Stars 价格。",listingAdded:"列表已添加。请联系 @skinhub_storage 转移皮肤。",writeReview:"请填写评价内容。",fillTicket:"请填写主题和消息。",ticketSaved:"工单已保存。",
 noAccess:"无权限。",fillNameText:"请填写姓名和文本。",reviewAdded:"评价已添加。",checkIdReply:"请检查工单 ID 和回复。",replySaved:"回复已保存。",openTelegram:"请通过 Telegram 打开应用",localMode:"Telegram 外的本地模式",
 statusNew:"新建",statusReplied:"已回复",supportReply:"支持回复",skinsShown:"个皮肤"
 },
@@ -291,7 +299,7 @@ helpEyebrow:"SIAMO QUI PER AIUTARTI",supportTitle:"Supporto",ticketSubject:"Ogge
 account:"ACCOUNT",profileTitle:"Profilo",myListings:"I miei annunci",adminTitle:"Pannello admin",adminWarning:"I diritti admin in questo mock sono controllati lato client e non sono una protezione sicura in produzione.",
 adminAddReview:"Aggiungi recensione negozio",name:"Nome",text:"Testo",addReviewBtn:"Aggiungi recensione",userTickets:"Ticket utenti",replyTicket:"Rispondi al ticket",reply:"Risposta",saveReply:"Salva risposta",
 nothingFound:"Nessun risultato.",noListings:"Non hai ancora annunci.",noTickets:"Non hai ancora ticket.",noAdminTickets:"Nessun ticket.",listingLabel:"Annuncio",stars:"Stars",
-fillSkinPrice:"Seleziona una skin e inserisci un prezzo Stars positivo.",listingAdded:"Annuncio aggiunto. Contatta @xyrexon per trasferire la skin.",writeReview:"Scrivi il testo della recensione.",fillTicket:"Compila oggetto e messaggio.",ticketSaved:"Ticket salvato.",
+fillSkinPrice:"Seleziona una skin e inserisci un prezzo Stars positivo.",listingAdded:"Annuncio aggiunto. Contatta @skinhub_storage per trasferire la skin.",writeReview:"Scrivi il testo della recensione.",fillTicket:"Compila oggetto e messaggio.",ticketSaved:"Ticket salvato.",
 noAccess:"Accesso negato.",fillNameText:"Compila nome e testo.",reviewAdded:"Recensione aggiunta.",checkIdReply:"Controlla ID ticket e risposta.",replySaved:"Risposta salvata.",openTelegram:"Apri l'app tramite Telegram",localMode:"Modalità locale fuori da Telegram",
 statusNew:"Nuovo",statusReplied:"Risposto",supportReply:"Risposta supporto",skinsShown:"skin"
 },
@@ -306,12 +314,12 @@ helpEyebrow:"お手伝いします",supportTitle:"サポート",ticketSubject:"�
 account:"アカウント",profileTitle:"プロフィール",myListings:"自分の出品",adminTitle:"管理パネル",adminWarning:"このモックでは管理者権限はクライアント側で確認され、本番の安全な保護ではありません。",
 adminAddReview:"ストアレビューを追加",name:"名前",text:"テキスト",addReviewBtn:"レビュー追加",userTickets:"ユーザーチケット",replyTicket:"チケットに返信",reply:"返信",saveReply:"返信を保存",
 nothingFound:"見つかりません。",noListings:"まだ出品がありません。",noTickets:"まだチケットがありません。",noAdminTickets:"チケットはまだありません。",listingLabel:"出品",stars:"Stars",
-fillSkinPrice:"スキンを選び、正のStars価格を入力してください。",listingAdded:"出品を追加しました。@xyrexon に連絡してスキンを送ってください。",writeReview:"レビュー本文を書いてください。",fillTicket:"件名とメッセージを入力してください。",ticketSaved:"チケットを保存しました。",
+fillSkinPrice:"スキンを選び、正のStars価格を入力してください。",listingAdded:"出品を追加しました。@skinhub_storage に連絡してスキンを送ってください。",writeReview:"レビュー本文を書いてください。",fillTicket:"件名とメッセージを入力してください。",ticketSaved:"チケットを保存しました。",
 noAccess:"アクセスできません。",fillNameText:"名前とテキストを入力してください。",reviewAdded:"レビューを追加しました。",checkIdReply:"チケットIDと返信を確認してください。",replySaved:"返信を保存しました。",openTelegram:"Telegramからアプリを開いてください",localMode:"Telegram外のローカルモード",
 statusNew:"新規",statusReplied:"返信済み",supportReply:"サポート返信",skinsShown:"スキン"
 }
 };
-const HOWTO = {"ru": {"howto1Title": "1. Продажа скина", "howto1Text": "Выберите скин в приложении и выставьте объявление. Чтобы продать скин, отправьте его админу @xyrexon — с ним можно связаться в Telegram.", "howto2Title": "2. Когда ваш скин купили", "howto2Text": "Если ваш скин купили, тот же админ @xyrexon отправляет вам Telegram Stars за продажу.", "howto3Title": "3. Покупка скина", "howto3Text": "При покупке вы отправляете Stars админу @xyrexon, а он передаёт вам скин через Steam Trade.", "howto4Title": "4. Поддержка", "howto4Text": "Все сделки и вопросы — через админа @xyrexon. Дополнительно: @SkinHub_support", "listingHint": "После публикации свяжитесь с @xyrexon и передайте скин админу.", "heroNote": "Сделки через админа @xyrexon · Telegram Stars + Steam", "supportIntro": "Сделки, Stars и передача скинов — через админа:", "supportExtra": "Доп. поддержка: @SkinHub_support", "adminContactLabel": "Админ для сделок:", "skinSearchPh": "Поиск скина (AK, AWP, Karambit...)"}, "en": {"howto1Title": "1. Selling a skin", "howto1Text": "Pick a skin in the app and create a listing. To sell, send the skin to admin @xyrexon — contact him on Telegram.", "howto2Title": "2. When your skin is bought", "howto2Text": "If your skin is bought, the same admin @xyrexon sends you Telegram Stars for the sale.", "howto3Title": "3. Buying a skin", "howto3Text": "When buying, you send Stars to admin @xyrexon and he transfers the skin to you via Steam Trade.", "howto4Title": "4. Support", "howto4Text": "All deals and questions go through admin @xyrexon. Extra: @SkinHub_support", "listingHint": "After listing, contact @xyrexon and send him the skin.", "heroNote": "Deals via admin @xyrexon · Telegram Stars + Steam", "supportIntro": "Deals, Stars and skin transfers — through the admin:", "supportExtra": "Extra support: @SkinHub_support", "adminContactLabel": "Deal admin:", "skinSearchPh": "Search skin (AK, AWP, Karambit...)"}, "de": {"howto1Title": "1. Skin verkaufen", "howto1Text": "Wähle einen Skin und erstelle eine Anzeige. Zum Verkauf sende den Skin an Admin @xyrexon — erreichbar auf Telegram.", "howto2Title": "2. Wenn dein Skin gekauft wird", "howto2Text": "Wird dein Skin gekauft, sendet derselbe Admin @xyrexon dir Telegram Stars.", "howto3Title": "3. Skin kaufen", "howto3Text": "Beim Kauf sendest du Stars an Admin @xyrexon; er überträgt den Skin per Steam Trade.", "howto4Title": "4. Support", "howto4Text": "Alle Deals über Admin @xyrexon. Zusätzlich: @SkinHub_support", "listingHint": "Nach der Anzeige kontaktiere @xyrexon und sende den Skin.", "heroNote": "Deals über Admin @xyrexon · Telegram Stars + Steam", "supportIntro": "Deals, Stars und Transfers — über den Admin:", "supportExtra": "Extra-Support: @SkinHub_support", "adminContactLabel": "Deal-Admin:", "skinSearchPh": "Skin suchen (AK, AWP, Karambit...)"}, "zh": {"howto1Title": "1. 出售皮肤", "howto1Text": "在应用中选择皮肤并发布。出售时请将皮肤发送给管理员 @xyrexon（Telegram 联系）。", "howto2Title": "2. 皮肤被购买时", "howto2Text": "若你的皮肤被买走，同一管理员 @xyrexon 会向你发送 Telegram Stars。", "howto3Title": "3. 购买皮肤", "howto3Text": "购买时你向管理员 @xyrexon 发送 Stars，他通过 Steam 交易把皮肤给你。", "howto4Title": "4. 支持", "howto4Text": "所有交易与问题通过管理员 @xyrexon。额外：@SkinHub_support", "listingHint": "发布后联系 @xyrexon 并发送皮肤。", "heroNote": "交易通过管理员 @xyrexon · Telegram Stars + Steam", "supportIntro": "交易、Stars 与皮肤转移通过管理员：", "supportExtra": "额外支持：@SkinHub_support", "adminContactLabel": "交易管理员：", "skinSearchPh": "搜索皮肤 (AK, AWP, Karambit...)"}, "it": {"howto1Title": "1. Vendita skin", "howto1Text": "Scegli una skin e crea l'annuncio. Per vendere, invia la skin all'admin @xyrexon su Telegram.", "howto2Title": "2. Quando la tua skin viene comprata", "howto2Text": "Se la tua skin viene acquistata, lo stesso admin @xyrexon ti invia i Telegram Stars.", "howto3Title": "3. Acquisto skin", "howto3Text": "In acquisto invii Stars all'admin @xyrexon e lui ti trasferisce la skin via Steam Trade.", "howto4Title": "4. Supporto", "howto4Text": "Tutti gli affari tramite admin @xyrexon. Extra: @SkinHub_support", "listingHint": "Dopo l'annuncio contatta @xyrexon e inviagli la skin.", "heroNote": "Affari tramite admin @xyrexon · Telegram Stars + Steam", "supportIntro": "Affari, Stars e trasferimenti — tramite l'admin:", "supportExtra": "Supporto extra: @SkinHub_support", "adminContactLabel": "Admin affari:", "skinSearchPh": "Cerca skin (AK, AWP, Karambit...)"}, "ja": {"howto1Title": "1. スキンの売却", "howto1Text": "アプリでスキンを選び出品します。売却するには管理者 @xyrexon にスキンを送ってください（Telegram）。", "howto2Title": "2. スキンが売れたとき", "howto2Text": "スキンが購入されたら、同じ管理者 @xyrexon が Telegram Stars を送ります。", "howto3Title": "3. スキンの購入", "howto3Text": "購入時は管理者 @xyrexon に Stars を送り、Steamトレードでスキンを受け取ります。", "howto4Title": "4. サポート", "howto4Text": "取引は管理者 @xyrexon 経由。追加: @SkinHub_support", "listingHint": "出品後 @xyrexon に連絡しスキンを送ってください。", "heroNote": "管理者 @xyrexon 経由 · Telegram Stars + Steam", "supportIntro": "取引・Stars・転送は管理者経由：", "supportExtra": "追加サポート: @SkinHub_support", "adminContactLabel": "取引管理者：", "skinSearchPh": "スキン検索 (AK, AWP, Karambit...)"}};
+const HOWTO = {"ru": {"howto1Title": "1. Продажа скина", "howto1Text": "Выберите скин в приложении и выставьте объявление. Чтобы продать скин, отправьте его админу @skinhub_storage — с ним можно связаться в Telegram.", "howto2Title": "2. Когда ваш скин купили", "howto2Text": "Если ваш скин купили, тот же админ @skinhub_storage отправляет вам Telegram Stars за продажу.", "howto3Title": "3. Покупка скина", "howto3Text": "При покупке вы отправляете Stars админу @skinhub_storage, а он передаёт вам скин через Steam Trade.", "howto4Title": "4. Поддержка", "howto4Text": "Все сделки и вопросы — через админа @skinhub_storage. Дополнительно: @SkinHub_support", "listingHint": "После публикации свяжитесь с @skinhub_storage и передайте скин админу.", "heroNote": "Сделки через админа @skinhub_storage · Telegram Stars + Steam", "supportIntro": "Сделки, Stars и передача скинов — через админа:", "supportExtra": "Доп. поддержка: @SkinHub_support", "adminContactLabel": "Админ для сделок:", "skinSearchPh": "Поиск скина (AK, AWP, Karambit...)"}, "en": {"howto1Title": "1. Selling a skin", "howto1Text": "Pick a skin in the app and create a listing. To sell, send the skin to admin @skinhub_storage — contact him on Telegram.", "howto2Title": "2. When your skin is bought", "howto2Text": "If your skin is bought, the same admin @skinhub_storage sends you Telegram Stars for the sale.", "howto3Title": "3. Buying a skin", "howto3Text": "When buying, you send Stars to admin @skinhub_storage and he transfers the skin to you via Steam Trade.", "howto4Title": "4. Support", "howto4Text": "All deals and questions go through admin @skinhub_storage. Extra: @SkinHub_support", "listingHint": "After listing, contact @skinhub_storage and send him the skin.", "heroNote": "Deals via admin @skinhub_storage · Telegram Stars + Steam", "supportIntro": "Deals, Stars and skin transfers — through the admin:", "supportExtra": "Extra support: @SkinHub_support", "adminContactLabel": "Deal admin:", "skinSearchPh": "Search skin (AK, AWP, Karambit...)"}, "de": {"howto1Title": "1. Skin verkaufen", "howto1Text": "Wähle einen Skin und erstelle eine Anzeige. Zum Verkauf sende den Skin an Admin @skinhub_storage — erreichbar auf Telegram.", "howto2Title": "2. Wenn dein Skin gekauft wird", "howto2Text": "Wird dein Skin gekauft, sendet derselbe Admin @skinhub_storage dir Telegram Stars.", "howto3Title": "3. Skin kaufen", "howto3Text": "Beim Kauf sendest du Stars an Admin @skinhub_storage; er überträgt den Skin per Steam Trade.", "howto4Title": "4. Support", "howto4Text": "Alle Deals über Admin @skinhub_storage. Zusätzlich: @SkinHub_support", "listingHint": "Nach der Anzeige kontaktiere @skinhub_storage und sende den Skin.", "heroNote": "Deals über Admin @skinhub_storage · Telegram Stars + Steam", "supportIntro": "Deals, Stars und Transfers — über den Admin:", "supportExtra": "Extra-Support: @SkinHub_support", "adminContactLabel": "Deal-Admin:", "skinSearchPh": "Skin suchen (AK, AWP, Karambit...)"}, "zh": {"howto1Title": "1. 出售皮肤", "howto1Text": "在应用中选择皮肤并发布。出售时请将皮肤发送给管理员 @skinhub_storage（Telegram 联系）。", "howto2Title": "2. 皮肤被购买时", "howto2Text": "若你的皮肤被买走，同一管理员 @skinhub_storage 会向你发送 Telegram Stars。", "howto3Title": "3. 购买皮肤", "howto3Text": "购买时你向管理员 @skinhub_storage 发送 Stars，他通过 Steam 交易把皮肤给你。", "howto4Title": "4. 支持", "howto4Text": "所有交易与问题通过管理员 @skinhub_storage。额外：@SkinHub_support", "listingHint": "发布后联系 @skinhub_storage 并发送皮肤。", "heroNote": "交易通过管理员 @skinhub_storage · Telegram Stars + Steam", "supportIntro": "交易、Stars 与皮肤转移通过管理员：", "supportExtra": "额外支持：@SkinHub_support", "adminContactLabel": "交易管理员：", "skinSearchPh": "搜索皮肤 (AK, AWP, Karambit...)"}, "it": {"howto1Title": "1. Vendita skin", "howto1Text": "Scegli una skin e crea l'annuncio. Per vendere, invia la skin all'admin @skinhub_storage su Telegram.", "howto2Title": "2. Quando la tua skin viene comprata", "howto2Text": "Se la tua skin viene acquistata, lo stesso admin @skinhub_storage ti invia i Telegram Stars.", "howto3Title": "3. Acquisto skin", "howto3Text": "In acquisto invii Stars all'admin @skinhub_storage e lui ti trasferisce la skin via Steam Trade.", "howto4Title": "4. Supporto", "howto4Text": "Tutti gli affari tramite admin @skinhub_storage. Extra: @SkinHub_support", "listingHint": "Dopo l'annuncio contatta @skinhub_storage e inviagli la skin.", "heroNote": "Affari tramite admin @skinhub_storage · Telegram Stars + Steam", "supportIntro": "Affari, Stars e trasferimenti — tramite l'admin:", "supportExtra": "Supporto extra: @SkinHub_support", "adminContactLabel": "Admin affari:", "skinSearchPh": "Cerca skin (AK, AWP, Karambit...)"}, "ja": {"howto1Title": "1. スキンの売却", "howto1Text": "アプリでスキンを選び出品します。売却するには管理者 @skinhub_storage にスキンを送ってください（Telegram）。", "howto2Title": "2. スキンが売れたとき", "howto2Text": "スキンが購入されたら、同じ管理者 @skinhub_storage が Telegram Stars を送ります。", "howto3Title": "3. スキンの購入", "howto3Text": "購入時は管理者 @skinhub_storage に Stars を送り、Steamトレードでスキンを受け取ります。", "howto4Title": "4. サポート", "howto4Text": "取引は管理者 @skinhub_storage 経由。追加: @SkinHub_support", "listingHint": "出品後 @skinhub_storage に連絡しスキンを送ってください。", "heroNote": "管理者 @skinhub_storage 経由 · Telegram Stars + Steam", "supportIntro": "取引・Stars・転送は管理者経由：", "supportExtra": "追加サポート: @SkinHub_support", "adminContactLabel": "取引管理者：", "skinSearchPh": "スキン検索 (AK, AWP, Karambit...)"}};
 for (const [lang, ov] of Object.entries(HOWTO)) {
   if (!I18N[lang]) I18N[lang] = {};
   Object.assign(I18N[lang], ov);
@@ -431,7 +439,11 @@ function mapListing(row) {
     owner: row.owner,
     ownerName: row.owner_name || "",
     skinId: row.skin_id || "",
-    wear: row.wear || ""
+    wear: row.wear || "",
+    status: row.status || "pending",
+    commissionPercent: Number(row.commission_percent ?? 20),
+    commissionAmount: Number(row.commission_amount ?? Math.round(Number(row.price) * 0.2)),
+    sellerPayout: Number(row.seller_payout ?? Math.round(Number(row.price) * 0.8))
   };
 }
 function wearLabel(code) {
@@ -443,6 +455,24 @@ function mapReview(row) {
 }
 function mapTicket(row) {
   return { id: row.id, owner: row.owner, name: row.name, subject: row.subject, text: row.text, status: row.status, reply: row.reply || "" };
+}
+
+async function refreshAdminRole() {
+  isAdmin = false;
+  if (!isLoggedIn() || !session.user_id || !sbEnabled) {
+    const tab = document.getElementById("adminTab");
+    if (tab) tab.hidden = true;
+    return;
+  }
+  try {
+    const rows = await sb(`admin_users?select=user_id&user_id=eq.${encodeURIComponent(session.user_id)}`);
+    isAdmin = Array.isArray(rows) && rows.some((r) => String(r.user_id) === String(session.user_id));
+  } catch (e) {
+    console.warn("Admin role check failed", e);
+    isAdmin = false;
+  }
+  const tab = document.getElementById("adminTab");
+  if (tab) tab.hidden = !isAdmin;
 }
 
 async function loadAllData() {
@@ -457,7 +487,7 @@ async function loadAllData() {
   }
   try {
     const [L, R, T] = await Promise.all([
-      sb("listings?select=*&order=created_at.desc"),
+      sb(`listings?select=*&${isAdmin ? "" : `or=(status.eq.approved,owner.eq.${encodeURIComponent(currentOwnerId())})&`}order=created_at.desc`),
       sb("reviews?select=*&order=created_at.desc"),
       sb("tickets?select=*&order=created_at.desc")
     ]);
@@ -543,15 +573,16 @@ function categoryName(c) {
 
 function renderCatalog() {
   const q = document.getElementById("search").value.toLowerCase();
-  const list = listings.filter((x) => (activeFilter === "all" || x.category === activeFilter) && x.name.toLowerCase().includes(q));
+  const list = listings.filter((x) => x.status === "approved" && (activeFilter === "all" || x.category === activeFilter) && x.name.toLowerCase().includes(q));
   document.getElementById("catalog").innerHTML =
     list.map((x) => `
     <article class="item">
       <div class="item-art">${x.image ? `<img src="${escapeAttr(x.image)}" alt="${escapeAttr(x.name)}" onerror="this.style.display='none';this.parentElement.textContent='✦'">` : "✦"}</div>
       <div class="item-body">
         <h3>${escapeHtml(x.name)}</h3>
-        <div class="muted">${t("listingLabel")} · ${categoryName(x.category)}${x.wear ? " · " + wearLabel(x.wear) : ""}</div>
+        <div class="muted">Объявление #${escapeHtml(x.id)} · ${categoryName(x.category)}${x.wear ? " · " + wearLabel(x.wear) : ""}</div>
         <div class="price">${Number(x.price)} ${t("stars")}</div>
+        <div class="muted">Комиссия 20%: ${x.commissionAmount} ⭐ · продавцу: ${x.sellerPayout} ⭐</div>
       </div>
     </article>`).join("") || `<p class="muted">${t("nothingFound")}</p>`;
 }
@@ -566,11 +597,24 @@ document.querySelectorAll(".chip").forEach((b) =>
   })
 );
 
+function updateCommissionPreview() {
+  const price = Number(document.getElementById("itemPrice")?.value || 0);
+  const fee = Number.isFinite(price) && price > 0 ? Math.round(price * 0.20) : 0;
+  const payout = Math.max(0, price - fee);
+  const el = document.getElementById("commissionPreview");
+  if (el) el.textContent = price > 0
+    ? `Комиссия 20%: ${fee} ⭐ · после комиссии продавец получит: ${payout} ⭐`
+    : "Комиссия 20% · продавец получит 80% от цены";
+}
+document.getElementById("itemPrice")?.addEventListener("input", updateCommissionPreview);
+
 document.getElementById("addListing").onclick = async () => {
+  if (!isLoggedIn()) { alert("Сначала войдите или зарегистрируйтесь, чтобы выставить скин."); openAuthModal(); return; }
+  if (!sbEnabled) { alert("Для публикации необходимо подключение к общей базе SKINHUB."); return; }
   const skinId = skinSelect.value;
   const skin = SKINS.find((s) => s.id === skinId);
   const price = Number(document.getElementById("itemPrice").value);
-  if (!skin || !Number.isFinite(price) || price <= 0) { alert(t("fillSkinPrice")); return; }
+  if (!skin || !Number.isInteger(price) || price <= 0) { alert(t("fillSkinPrice")); return; }
   const wear = document.getElementById("itemWear")?.value || "FT";
   const payload = {
     name: skin.name,
@@ -580,17 +624,16 @@ document.getElementById("addListing").onclick = async () => {
     owner: currentOwnerId(),
     owner_name: currentUsername(),
     skin_id: skin.id,
-    wear
+    wear,
+    status: "pending",
+    commission_percent: 20,
+    commission_amount: Math.round(price * 0.20),
+    seller_payout: price - Math.round(price * 0.20)
   };
   try {
-    if (sbEnabled) {
-      const rows = await sb("listings", { method: "POST", body: JSON.stringify(payload) });
-      const row = Array.isArray(rows) ? rows[0] : rows;
-      listings.unshift(mapListing(row));
-    } else {
-      listings.unshift({ id: Date.now(), ...payload, skinId: skin.id, ownerName: userName });
-      write("sh_listings_v3", listings);
-    }
+    const rows = await sb("listings", { method: "POST", body: JSON.stringify(payload) });
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    listings.unshift(mapListing(row));
   } catch (e) {
     console.error(e);
     alert("Не удалось сохранить объявление: " + e.message);
@@ -602,8 +645,9 @@ document.getElementById("addListing").onclick = async () => {
   populateSkins();
   preview.classList.add("hidden");
   renderCatalog();
-  alert(t("listingAdded"));
-  showPage("home");
+  alert("Объявление отправлено администратору на модерацию. После одобрения оно появится в каталоге.");
+  renderMyListings();
+  showPage("profile");
 };
 
 function renderReviews() {
@@ -668,15 +712,63 @@ document.getElementById("createTicket").onclick = async () => {
 };
 
 function renderMyListings() {
-  document.getElementById("myListings").innerHTML =
-    listings.filter((x) => x.owner === currentOwnerId() || x.owner === userId).map((x) =>
-      `<div class="entry"><h3>${escapeHtml(x.name)}</h3><p>${x.wear ? wearLabel(x.wear) + " · " : ""}${x.price} ${t("stars")}</p></div>`
-    ).join("") || `<p class="muted">${t("noListings")}</p>`;
+  const mine = listings.filter((x) => x.owner === currentOwnerId() || x.owner === userId);
+  document.getElementById("myListings").innerHTML = mine.map((x) =>
+    `<div class="entry listing-manage">
+      <div><h3>${escapeHtml(x.name)} <span class="muted">#${escapeHtml(x.id)}</span></h3>
+      <p>${x.wear ? wearLabel(x.wear) + " · " : ""}${x.price} ⭐ · комиссия ${x.commissionAmount} ⭐ · вам ${x.sellerPayout} ⭐</p>
+      <p class="muted">Статус: ${x.status === "approved" ? "Одобрено" : x.status === "rejected" ? "Отклонено" : "На модерации"}</p></div>
+      <button class="danger" data-delete-listing="${escapeAttr(x.id)}" type="button">Удалить</button>
+    </div>`
+  ).join("") || `<p class="muted">${t("noListings")}</p>`;
+  document.querySelectorAll("[data-delete-listing]").forEach((btn) => {
+    btn.addEventListener("click", () => deleteListing(btn.dataset.deleteListing));
+  });
+}
+
+async function deleteListing(id) {
+  if (!confirm("Удалить это объявление?")) return;
+  try {
+    if (!sbEnabled || !isLoggedIn()) throw new Error("Войдите в аккаунт, чтобы управлять объявлениями.");
+    await sb(`listings?id=eq.${encodeURIComponent(id)}&owner=eq.${encodeURIComponent(currentOwnerId())}`, {
+      method: "DELETE", prefer: "return=minimal"
+    });
+    listings = listings.filter((x) => String(x.id) !== String(id));
+    renderCatalog();
+    renderMyListings();
+  } catch (e) {
+    alert("Не удалось удалить объявление: " + e.message);
+  }
 }
 
 function renderAdmin() {
   if (!isAdmin) return;
   document.getElementById("adminTickets").innerHTML = tickets.map(ticketHtml).join("") || `<p class="muted">${t("noAdminTickets")}</p>`;
+  const pending = listings.filter((x) => x.status === "pending");
+  document.getElementById("adminListings").innerHTML = pending.map((x) =>
+    `<div class="entry"><h3>${escapeHtml(x.name)} <span class="muted">#${escapeHtml(x.id)}</span></h3>
+    <p>${x.price} ⭐ · комиссия ${x.commissionAmount} ⭐ · продавцу ${x.sellerPayout} ⭐ · ${escapeHtml(x.ownerName)}</p>
+    <div class="admin-actions"><button class="primary" data-approve-listing="${escapeAttr(x.id)}">Одобрить</button>
+    <button class="danger" data-reject-listing="${escapeAttr(x.id)}">Отклонить</button></div></div>`
+  ).join("") || `<p class="muted">Нет объявлений на модерации.</p>`;
+  document.querySelectorAll("[data-approve-listing]").forEach((b) => b.addEventListener("click", () => moderateListing(b.dataset.approveListing, "approved")));
+  document.querySelectorAll("[data-reject-listing]").forEach((b) => b.addEventListener("click", () => moderateListing(b.dataset.rejectListing, "rejected")));
+}
+
+async function moderateListing(id, status) {
+  if (!isAdmin) return alert("Нет доступа.");
+  try {
+    await sb(`listings?id=eq.${encodeURIComponent(id)}`, {
+      method: "PATCH", body: JSON.stringify({ status }), prefer: "return=minimal"
+    });
+    const item = listings.find((x) => String(x.id) === String(id));
+    if (item) item.status = status;
+    renderAdmin();
+    renderCatalog();
+    renderMyListings();
+  } catch (e) {
+    alert("Не удалось изменить статус: " + e.message);
+  }
 }
 document.getElementById("adminAddReviewBtn").onclick = async () => {
   if (!isAdmin) return alert(t("noAccess"));
@@ -728,7 +820,9 @@ document.getElementById("sendReply").onclick = async () => {
 };
 
 applyI18n();
-Promise.all([loadSkinsCatalog(), loadAllData()]).then(() => {
+refreshAdminRole().then(() => Promise.all([loadSkinsCatalog(), loadAllData()])).then(() => {
   listings = listings.map((l) => ({ ...l, image: resolveSkinImage(l.name, l.skinId, l.image) }));
   renderCatalog();
+  renderMyListings();
+  if (isAdmin) renderAdmin();
 });
