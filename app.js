@@ -34,7 +34,7 @@ async function sb(path, options = {}) {
     ...options,
     headers: {
       apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       "Content-Type": "application/json",
       Prefer: options.prefer || "return=representation",
       ...(options.headers || {})
@@ -49,17 +49,18 @@ async function sb(path, options = {}) {
 }
 
 
-/* ========== AUTH (ник + пароль через Supabase Auth) ========== */
-function nickToEmail(nick) {
-  const safe = String(nick).trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
-  return safe + "@skinhub.local";
+/* ========== AUTH (ник + пароль через таблицу accounts, без email / rate limit) ========== */
+async function sha256(text) {
+  const data = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 let session = null;
 try { session = JSON.parse(localStorage.getItem("sh_session") || "null"); } catch { session = null; }
 
 function isLoggedIn() {
-  return !!(session && session.access_token && session.username);
+  return !!(session && session.username && session.user_id);
 }
 
 function currentUsername() {
@@ -87,26 +88,10 @@ function updateAuthUI() {
   if (av) av.textContent = (isLoggedIn() ? session.username : userName)[0]?.toUpperCase() || "?";
 }
 
-async function sbAuth(path, body) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = data.error_description || data.msg || data.error || data.message || res.statusText;
-    throw new Error(msg);
-  }
-  return data;
-}
-
 function openAuthModal() {
   document.getElementById("authModal")?.classList.remove("hidden");
-  document.getElementById("authError").textContent = "";
+  const err = document.getElementById("authError");
+  if (err) err.textContent = "";
   updateAuthUI();
 }
 function closeAuthModal() {
@@ -124,9 +109,10 @@ document.querySelectorAll(".auth-tab").forEach((tab) => {
     document.querySelectorAll(".auth-tab").forEach((x) => x.classList.remove("active"));
     tab.classList.add("active");
     const mode = tab.dataset.auth;
-    document.getElementById("authLoginPane").classList.toggle("hidden", mode !== "login");
-    document.getElementById("authRegisterPane").classList.toggle("hidden", mode !== "register");
-    document.getElementById("authError").textContent = "";
+    document.getElementById("authLoginPane")?.classList.toggle("hidden", mode !== "login");
+    document.getElementById("authRegisterPane")?.classList.toggle("hidden", mode !== "register");
+    const err = document.getElementById("authError");
+    if (err) err.textContent = "";
   });
 });
 
@@ -137,23 +123,22 @@ document.getElementById("doLogin")?.addEventListener("click", async () => {
   if (!nick || !pass) return (err.textContent = t("authNeedFields"));
   if (!sbEnabled) return (err.textContent = "Supabase не настроен");
   try {
-    const data = await sbAuth("token?grant_type=password", {
-      email: nickToEmail(nick),
-      password: pass
-    });
-    session = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      user_id: data.user?.id || data.user_id,
-      username: nick
-    };
+    const hash = await sha256(pass + "::" + nick.toLowerCase());
+    const rows = await sb("accounts?username=eq." + encodeURIComponent(nick) + "&select=id,username,password_hash");
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row || row.password_hash !== hash) {
+      err.textContent = (t("authErr") || "Ошибка") + ": неверный ник или пароль";
+      return;
+    }
+    session = { user_id: String(row.id), username: row.username };
     write("sh_session", session);
     updateAuthUI();
     await refreshAdminRole();
     await loadAllData();
     err.textContent = t("authOkLogin");
-    setTimeout(closeAuthModal, 500);
+    setTimeout(closeAuthModal, 400);
   } catch (e) {
+    console.error(e);
     err.textContent = e.message || t("authErr");
   }
 });
@@ -169,48 +154,32 @@ document.getElementById("doRegister")?.addEventListener("click", async () => {
   if (pass !== pass2) return (err.textContent = t("authPassMatch"));
   if (!sbEnabled) return (err.textContent = "Supabase не настроен");
   try {
-    const data = await sbAuth("signup", {
-      email: nickToEmail(nick),
-      password: pass,
-      data: { username: nick }
-    });
-    // some projects require email confirm — if session returned, login immediately
-    if (data.access_token) {
-      session = {
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-        user_id: data.user?.id,
-        username: nick
-      };
-      write("sh_session", session);
-      updateAuthUI();
-      await refreshAdminRole();
-      await loadAllData();
-      err.textContent = t("authOkReg");
-      setTimeout(closeAuthModal, 600);
-    } else if (data.user || data.id) {
-      // try login right away
-      const login = await sbAuth("token?grant_type=password", {
-        email: nickToEmail(nick),
-        password: pass
-      });
-      session = {
-        access_token: login.access_token,
-        refresh_token: login.refresh_token,
-        user_id: login.user?.id,
-        username: nick
-      };
-      write("sh_session", session);
-      updateAuthUI();
-      await refreshAdminRole();
-      await loadAllData();
-      err.textContent = t("authOkReg");
-      setTimeout(closeAuthModal, 600);
-    } else {
-      err.textContent = t("authOkReg");
+    const exists = await sb("accounts?username=eq." + encodeURIComponent(nick) + "&select=id");
+    if (Array.isArray(exists) && exists.length) {
+      err.textContent = "Такой ник уже занят";
+      return;
     }
+    const hash = await sha256(pass + "::" + nick.toLowerCase());
+    const rows = await sb("accounts", {
+      method: "POST",
+      body: JSON.stringify({ username: nick, password_hash: hash })
+    });
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    session = { user_id: String(row.id), username: row.username || nick };
+    write("sh_session", session);
+    updateAuthUI();
+    await refreshAdminRole();
+    await loadAllData();
+    err.textContent = t("authOkReg");
+    setTimeout(closeAuthModal, 400);
   } catch (e) {
-    err.textContent = e.message || t("authErr");
+    console.error(e);
+    let msg = e.message || t("authErr");
+    if (String(msg).includes("duplicate") || String(msg).includes("unique")) msg = "Такой ник уже занят";
+    if (String(msg).includes("accounts") && String(msg).includes("does not exist")) {
+      msg = "Таблица accounts не создана. Выполни SQL accounts_setup.sql в Supabase.";
+    }
+    err.textContent = msg;
   }
 });
 
@@ -222,6 +191,7 @@ document.getElementById("doLogout")?.addEventListener("click", () => {
   updateAuthUI();
   closeAuthModal();
 });
+
 
 
 
