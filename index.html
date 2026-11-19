@@ -18,7 +18,7 @@
     </div>
     <div class="header-right">
       <select id="langSelect" class="lang-select" aria-label="Language"></select>
-      <button type="button" class="user auth-btn" id="authBtn"><span id="userLabel">Guest</span></button>
+      <button type="button" class="user auth-btn" id="authBtn">Guest</button>
     </div>
   </header>
 
@@ -46,7 +46,7 @@
           <div class="eyebrow" data-i18n="discover">DISCOVER</div>
           <h2 data-i18n="showcaseTitle">Витрина сообщества</h2>
         </div>
-        <input id="search" data-i18n-placeholder="searchPlaceholder" placeholder="Поиск..." aria-label="Search">
+        <input id="search" data-i18n-placeholder="searchPlaceholder" placeholder="Поиск по названию или #ID..." aria-label="Search">
       </div>
       <div class="filters">
         <button class="chip selected" data-filter="all" data-i18n="filterAll">Все</button>
@@ -54,6 +54,14 @@
         <button class="chip" data-filter="pistol" data-i18n="filterPistol">Пистолеты</button>
         <button class="chip" data-filter="knife" data-i18n="filterKnife">Ножи</button>
         <button class="chip" data-filter="other" data-i18n="filterOther">Другое</button>
+        <select id="sortSelect" class="sort-select" aria-label="Sort">
+          <option value="new">Сначала новые</option>
+          <option value="old">Сначала старые</option>
+          <option value="price_desc">Сначала дорогие</option>
+          <option value="price_asc">Сначала дешёвые</option>
+          <option value="stickers">С наклейками</option>
+          <option value="stattrak">Только StatTrak</option>
+        </select>
       </div>
       <div id="catalog" class="grid"></div>
     </section>
@@ -75,13 +83,14 @@
           <div id="skinPreviewName"></div>
         </div>
         <label>
-          <span data-i18n="category">Категория</span>
+          <span data-i18n="category">Категория (авто)</span>
           <select id="itemCategory">
             <option value="rifle" data-i18n="filterRifle">Винтовки</option>
             <option value="pistol" data-i18n="filterPistol">Пистолеты</option>
             <option value="knife" data-i18n="filterKnife">Ножи</option>
             <option value="other" data-i18n="filterOther">Другое</option>
           </select>
+          <span class="muted">Определяется автоматически при выборе скина</span>
         </label>
         <label>
           <span data-i18n="wear">Износ</span>
@@ -93,13 +102,21 @@
             <option value="BS" data-i18n="wearBS">Battle-Scarred</option>
           </select>
         </label>
+        <label class="check-row">
+          <input id="itemStatTrak" type="checkbox">
+          <span>StatTrak™</span>
+        </label>
+        <label class="check-row">
+          <input id="itemStickers" type="checkbox">
+          <span>Есть наклейки</span>
+        </label>
         <label>
           <span data-i18n="priceStars">Цена (Telegram Stars)</span>
-          <input id="itemPrice" type="number" min="1" step="1" placeholder="100">
-          <p class="muted" id="commissionPreview">Комиссия 20% · продавец получит 80% от цены</p>
+          <input id="itemPrice" type="number" min="1" placeholder="100">
         </label>
+        <p class="muted" id="commissionPreview">Комиссия 20% · продавец получит 80% от цены</p>
         <button class="primary" id="addListing" data-i18n="addListing">Добавить объявление</button>
-        <p class="muted" data-i18n="listingHint">После отправки объявление пройдёт модерацию. Комиссия магазина — 20%.</p>
+        <p class="muted" data-i18n="listingHint">После публикации свяжитесь с @skinhub_storage и передайте скин админу.</p>
       </div>
     </section>
 
@@ -109,7 +126,7 @@
       <div class="panel stack howto">
         <div class="entry">
           <h3 data-i18n="howto1Title">1. Продажа скина</h3>
-          <p data-i18n="howto1Text">Выберите скин в приложении и выставьте объявление. Чтобы продать скин, отправьте его администратору @skinhub_storage — с ним можно связаться в Telegram.</p>
+          <p data-i18n="howto1Text">Выберите скин в приложении и выставьте объявление. Чтобы продать скин, отправьте его админу @skinhub_storage — с ним можно связаться в Telegram.</p>
         </div>
         <div class="entry">
           <h3 data-i18n="howto2Title">2. Когда ваш скин купили</h3>
@@ -126,7 +143,7 @@
       </div>
       <div class="panel support-card">
         <p data-i18n="adminContactLabel">Админ для сделок:</p>
-        <a class="primary support-link" href="https://t.me/xyrexon" target="_blank" rel="noopener">@skinhub_storage</a>
+        <a class="primary support-link" href="https://t.me/skinhub_storage" target="_blank" rel="noopener">@skinhub_storage</a>
       </div>
     </section>
 
@@ -155,7 +172,7 @@
       <h2 data-i18n="supportTitle">Поддержка</h2>
       <div class="panel support-card">
         <p data-i18n="supportIntro">Сделки, Stars и передача скинов — через админа:</p>
-        <a class="primary support-link" href="https://t.me/xyrexon" target="_blank" rel="noopener">@skinhub_storage</a>
+        <a class="primary support-link" href="https://t.me/skinhub_storage" target="_blank" rel="noopener">@skinhub_storage</a>
         <p class="muted" data-i18n="supportExtra">Доп. поддержка: @SkinHub_support</p>
       </div>
       <div class="panel form">
@@ -192,11 +209,7 @@
     <section id="admin" class="page">
       <div class="eyebrow">CONTROL CENTER</div>
       <h2 data-i18n="adminTitle">Админ-панель</h2>
-      <div class="warning">Новые объявления появляются здесь до одобрения. Только назначенный администратор может принимать или отклонять скины.</div>
-      <div class="panel">
-        <h3>Объявления на модерации</h3>
-        <div id="adminListings" class="stack"></div>
-      </div>
+      <div class="warning" data-i18n="adminWarning">Права администратора в этом макете проверяются на клиенте и не являются безопасной защитой для продакшена.</div>
       <div class="panel form">
         <h3 data-i18n="adminAddReview">Добавить отзыв от имени магазина</h3>
         <label><span data-i18n="name">Имя</span><input id="adminReviewName" placeholder="Buyer"></label>

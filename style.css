@@ -78,9 +78,11 @@ footer span{color:var(--purple)}
 .ghost{border:1px solid var(--line);background:transparent;color:#c8b9ff;border-radius:9px;padding:12px;font-weight:700;cursor:pointer}
 #authError{color:#ff8f8f;min-height:16px}
 
-/* Listing moderation and owner controls */
-.listing-manage { display:flex; align-items:center; justify-content:space-between; gap:14px; }
-.listing-manage > div { min-width:0; }
-.admin-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-button.danger { background:#5a2630; color:#fff; border:1px solid #a94b5c; }
-button.danger:hover { filter:brightness(1.12); }
+.sort-select{border:1px solid var(--line);background:#14141e;color:#ccc;padding:9px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;outline:none;margin-left:4px}
+.check-row{display:flex!important;flex-direction:row!important;align-items:center;gap:10px}
+.check-row input{width:auto}
+.listing-manage{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.danger{border:1px solid #6e3030;background:#2a1518;color:#ffb4b4;border-radius:9px;padding:10px 12px;font-weight:700;cursor:pointer}
+.badge{display:inline-block;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:800;margin-right:4px;background:#2b2140;color:#d5c6ff}
+.badge.st{background:#3a2a12;color:#ffd28a}
+.badge.stick{background:#1a2f24;color:#9dffc8}

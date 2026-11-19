@@ -34,7 +34,7 @@ async function sb(path, options = {}) {
     ...options,
     headers: {
       apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Authorization: `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`,
       "Content-Type": "application/json",
       Prefer: options.prefer || "return=representation",
       ...(options.headers || {})
@@ -49,18 +49,17 @@ async function sb(path, options = {}) {
 }
 
 
-/* ========== AUTH (ник + пароль через таблицу accounts, без email / rate limit) ========== */
-async function sha256(text) {
-  const data = new TextEncoder().encode(text);
-  const buf = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+/* ========== AUTH (ник + пароль через Supabase Auth) ========== */
+function nickToEmail(nick) {
+  const safe = String(nick).trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  return safe + "@skinhub.local";
 }
 
 let session = null;
 try { session = JSON.parse(localStorage.getItem("sh_session") || "null"); } catch { session = null; }
 
 function isLoggedIn() {
-  return !!(session && session.username && session.user_id);
+  return !!(session && session.access_token && session.username);
 }
 
 function currentUsername() {
@@ -88,10 +87,26 @@ function updateAuthUI() {
   if (av) av.textContent = (isLoggedIn() ? session.username : userName)[0]?.toUpperCase() || "?";
 }
 
+async function sbAuth(path, body) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data.error_description || data.msg || data.error || data.message || res.statusText;
+    throw new Error(msg);
+  }
+  return data;
+}
+
 function openAuthModal() {
   document.getElementById("authModal")?.classList.remove("hidden");
-  const err = document.getElementById("authError");
-  if (err) err.textContent = "";
+  document.getElementById("authError").textContent = "";
   updateAuthUI();
 }
 function closeAuthModal() {
@@ -109,10 +124,9 @@ document.querySelectorAll(".auth-tab").forEach((tab) => {
     document.querySelectorAll(".auth-tab").forEach((x) => x.classList.remove("active"));
     tab.classList.add("active");
     const mode = tab.dataset.auth;
-    document.getElementById("authLoginPane")?.classList.toggle("hidden", mode !== "login");
-    document.getElementById("authRegisterPane")?.classList.toggle("hidden", mode !== "register");
-    const err = document.getElementById("authError");
-    if (err) err.textContent = "";
+    document.getElementById("authLoginPane").classList.toggle("hidden", mode !== "login");
+    document.getElementById("authRegisterPane").classList.toggle("hidden", mode !== "register");
+    document.getElementById("authError").textContent = "";
   });
 });
 
@@ -123,22 +137,23 @@ document.getElementById("doLogin")?.addEventListener("click", async () => {
   if (!nick || !pass) return (err.textContent = t("authNeedFields"));
   if (!sbEnabled) return (err.textContent = "Supabase не настроен");
   try {
-    const hash = await sha256(pass + "::" + nick.toLowerCase());
-    const rows = await sb("accounts?username=eq." + encodeURIComponent(nick) + "&select=id,username,password_hash");
-    const row = Array.isArray(rows) ? rows[0] : null;
-    if (!row || row.password_hash !== hash) {
-      err.textContent = (t("authErr") || "Ошибка") + ": неверный ник или пароль";
-      return;
-    }
-    session = { user_id: String(row.id), username: row.username };
+    const data = await sbAuth("token?grant_type=password", {
+      email: nickToEmail(nick),
+      password: pass
+    });
+    session = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      user_id: data.user?.id || data.user_id,
+      username: nick
+    };
     write("sh_session", session);
     updateAuthUI();
     await refreshAdminRole();
     await loadAllData();
     err.textContent = t("authOkLogin");
-    setTimeout(closeAuthModal, 400);
+    setTimeout(closeAuthModal, 500);
   } catch (e) {
-    console.error(e);
     err.textContent = e.message || t("authErr");
   }
 });
@@ -154,32 +169,48 @@ document.getElementById("doRegister")?.addEventListener("click", async () => {
   if (pass !== pass2) return (err.textContent = t("authPassMatch"));
   if (!sbEnabled) return (err.textContent = "Supabase не настроен");
   try {
-    const exists = await sb("accounts?username=eq." + encodeURIComponent(nick) + "&select=id");
-    if (Array.isArray(exists) && exists.length) {
-      err.textContent = "Такой ник уже занят";
-      return;
-    }
-    const hash = await sha256(pass + "::" + nick.toLowerCase());
-    const rows = await sb("accounts", {
-      method: "POST",
-      body: JSON.stringify({ username: nick, password_hash: hash })
+    const data = await sbAuth("signup", {
+      email: nickToEmail(nick),
+      password: pass,
+      data: { username: nick }
     });
-    const row = Array.isArray(rows) ? rows[0] : rows;
-    session = { user_id: String(row.id), username: row.username || nick };
-    write("sh_session", session);
-    updateAuthUI();
-    await refreshAdminRole();
-    await loadAllData();
-    err.textContent = t("authOkReg");
-    setTimeout(closeAuthModal, 400);
-  } catch (e) {
-    console.error(e);
-    let msg = e.message || t("authErr");
-    if (String(msg).includes("duplicate") || String(msg).includes("unique")) msg = "Такой ник уже занят";
-    if (String(msg).includes("accounts") && String(msg).includes("does not exist")) {
-      msg = "Таблица accounts не создана. Выполни SQL accounts_setup.sql в Supabase.";
+    // some projects require email confirm — if session returned, login immediately
+    if (data.access_token) {
+      session = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        user_id: data.user?.id,
+        username: nick
+      };
+      write("sh_session", session);
+      updateAuthUI();
+      await refreshAdminRole();
+      await loadAllData();
+      err.textContent = t("authOkReg");
+      setTimeout(closeAuthModal, 600);
+    } else if (data.user || data.id) {
+      // try login right away
+      const login = await sbAuth("token?grant_type=password", {
+        email: nickToEmail(nick),
+        password: pass
+      });
+      session = {
+        access_token: login.access_token,
+        refresh_token: login.refresh_token,
+        user_id: login.user?.id,
+        username: nick
+      };
+      write("sh_session", session);
+      updateAuthUI();
+      await refreshAdminRole();
+      await loadAllData();
+      err.textContent = t("authOkReg");
+      setTimeout(closeAuthModal, 600);
+    } else {
+      err.textContent = t("authOkReg");
     }
-    err.textContent = msg;
+  } catch (e) {
+    err.textContent = e.message || t("authErr");
   }
 });
 
@@ -191,7 +222,6 @@ document.getElementById("doLogout")?.addEventListener("click", () => {
   updateAuthUI();
   closeAuthModal();
 });
-
 
 
 
@@ -313,14 +343,33 @@ let SKINS = [];
 const CSGO_SKINS_URL = "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json";
 
 function mapApiCategory(skin) {
-  const catName = (skin.category && skin.category.name) || "";
-  const weaponName = (skin.weapon && skin.weapon.name) || skin.name || "";
-  const n = (catName + " " + weaponName).toLowerCase();
-  if (n.includes("knife") || weaponName.startsWith("★") || n.includes("bayonet") || n.includes("karambit") || n.includes("dagger")) return "knife";
-  if (n.includes("pistol")) return "pistol";
-  if (n.includes("rifle") || n.includes("sniper")) return "rifle";
-  // SMG, heavy, gloves, etc.
+  const catName = ((skin.category && (skin.category.name || skin.category.id)) || "").toLowerCase();
+  const weaponName = ((skin.weapon && skin.weapon.name) || skin.name || "").toLowerCase();
+  const n = catName + " " + weaponName;
+  if (
+    n.includes("knife") || n.includes("bayonet") || n.includes("karambit") || n.includes("dagger") ||
+    n.includes("talon") || n.includes("butterfly") || n.includes("gut ") || n.includes("flip") ||
+    n.includes("bowie") || n.includes("huntsman") || n.includes("falchion") || n.includes("shadow daggers") ||
+    n.includes("navaja") || n.includes("stiletto") || n.includes("ursus") || n.includes("nomad") ||
+    n.includes("skeleton") || n.includes("survival") || n.includes("paracord") || n.includes("classic knife") ||
+    n.includes("kukri") || (skin.name || "").startsWith("★")
+  ) return "knife";
+  if (
+    n.includes("pistol") || n.includes("glock") || n.includes("usp") || n.includes("p250") ||
+    n.includes("desert eagle") || n.includes("deagle") || n.includes("five-seve") || n.includes("tec-9") ||
+    n.includes("cz75") || n.includes("dual beretta") || n.includes("r8 revolver") || n.includes("p2000") ||
+    n.includes("zeus")
+  ) return "pistol";
+  if (
+    n.includes("rifle") || n.includes("sniper") || n.includes("ak-47") || n.includes("m4a") ||
+    n.includes("awp") || n.includes("aug") || n.includes("sg 553") || n.includes("famas") ||
+    n.includes("galil") || n.includes("ssg 08") || n.includes("scar-20") || n.includes("g3sg1")
+  ) return "rifle";
   return "other";
+}
+
+function detectCategoryFromName(name) {
+  return mapApiCategory({ name: name || "", category: { name: "" }, weapon: { name: name || "" } });
 }
 
 async function loadSkinsCatalog() {
@@ -382,6 +431,7 @@ let listings = [];
 let reviews = [];
 let tickets = [];
 let activeFilter = "all";
+let activeSort = "new";
 let dataReady = false;
 
 function resolveSkinImage(name, skinId, image) {
@@ -403,7 +453,7 @@ function mapListing(row) {
   return {
     id: row.id,
     name: row.name,
-    category: row.category,
+    category: row.category || detectCategoryFromName(row.name),
     price: Number(row.price),
     image: resolveSkinImage(row.name, row.skin_id, row.image || ""),
     owner: row.owner,
@@ -413,8 +463,23 @@ function mapListing(row) {
     status: row.status || "pending",
     commissionPercent: Number(row.commission_percent ?? 20),
     commissionAmount: Number(row.commission_amount ?? Math.round(Number(row.price) * 0.2)),
-    sellerPayout: Number(row.seller_payout ?? Math.round(Number(row.price) * 0.8))
+    sellerPayout: Number(row.seller_payout ?? Math.round(Number(row.price) * 0.8)),
+    hasStickers: !!(row.has_stickers === true || row.has_stickers === "true" || row.has_stickers === true),
+    isStatTrak: !!(row.is_stattrak === true || row.is_stattrak === "true" || row.is_stattrak === true),
+    createdAt: row.created_at || null
   };
+}
+
+function isMineListing(x) {
+  if (!x) return false;
+  const owner = String(x.owner || "");
+  const name = String(x.ownerName || "").toLowerCase();
+  const meOwner = String(currentOwnerId() || "");
+  const meUser = String(userId || "");
+  const meName = String(currentUsername() || "").toLowerCase();
+  if (owner && (owner === meOwner || owner === meUser || owner === ("user:" + meUser))) return true;
+  if (meName && name && name === meName) return true;
+  return false;
 }
 function wearLabel(code) {
   const map = { FN: "wearFN", MW: "wearMW", FT: "wearFT", WW: "wearWW", BS: "wearBS" };
@@ -456,8 +521,15 @@ async function loadAllData() {
     return;
   }
   try {
+    let listQuery = "listings?select=*&order=created_at.desc";
+    if (!isAdmin) {
+      const own = encodeURIComponent(currentOwnerId());
+      const uname = encodeURIComponent(currentUsername() || "");
+      // approved for everyone + all statuses for my owner id / username
+      listQuery = `listings?select=*&or=(status.eq.approved,owner.eq.${own}${uname ? `,owner_name.eq.${uname}` : ""})&order=created_at.desc`;
+    }
     const [L, R, T] = await Promise.all([
-      sb(`listings?select=*&${isAdmin ? "" : `or=(status.eq.approved,owner.eq.${encodeURIComponent(currentOwnerId())})&`}order=created_at.desc`),
+      sb(listQuery),
       sb("reviews?select=*&order=created_at.desc"),
       sb("tickets?select=*&order=created_at.desc")
     ]);
@@ -520,7 +592,9 @@ skinSelect.addEventListener("change", () => {
   previewImg.src = skin.image;
   previewImg.alt = skin.name;
   previewName.textContent = skin.name;
-  document.getElementById("itemCategory").value = skin.category;
+  const cat = skin.category || detectCategoryFromName(skin.name);
+  const catEl = document.getElementById("itemCategory");
+  if (catEl) catEl.value = cat;
   previewImg.onerror = () => { previewImg.style.display = "none"; };
   previewImg.onload = () => { previewImg.style.display = ""; };
 });
@@ -542,15 +616,36 @@ function categoryName(c) {
 }
 
 function renderCatalog() {
-  const q = document.getElementById("search").value.toLowerCase();
-  const list = listings.filter((x) => x.status === "approved" && (activeFilter === "all" || x.category === activeFilter) && x.name.toLowerCase().includes(q));
+  const rawQ = (document.getElementById("search")?.value || "").trim();
+  const q = rawQ.toLowerCase();
+  const qId = rawQ.replace(/^#/, "").trim();
+  let list = listings.filter((x) => {
+    if (x.status !== "approved") return false;
+    if (activeFilter !== "all" && x.category !== activeFilter) return false;
+    if (!q) return true;
+    if (String(x.id) === qId) return true;
+    if (String(x.id).includes(qId) && /^\d+$/.test(qId)) return true;
+    if ((x.name || "").toLowerCase().includes(q)) return true;
+    if ((x.ownerName || "").toLowerCase().includes(q)) return true;
+    return false;
+  });
+  // sort / special filters
+  if (activeSort === "stickers") list = list.filter((x) => x.hasStickers);
+  if (activeSort === "stattrak") list = list.filter((x) => x.isStatTrak);
+  list = list.slice().sort((a, b) => {
+    if (activeSort === "price_desc") return Number(b.price) - Number(a.price);
+    if (activeSort === "price_asc") return Number(a.price) - Number(b.price);
+    if (activeSort === "old") return Number(a.id) - Number(b.id);
+    // new / stickers / stattrak default newest first
+    return Number(b.id) - Number(a.id);
+  });
   document.getElementById("catalog").innerHTML =
     list.map((x) => `
     <article class="item">
       <div class="item-art">${x.image ? `<img src="${escapeAttr(x.image)}" alt="${escapeAttr(x.name)}" onerror="this.style.display='none';this.parentElement.textContent='✦'">` : "✦"}</div>
       <div class="item-body">
-        <h3>${escapeHtml(x.name)}</h3>
-        <div class="muted">Объявление #${escapeHtml(x.id)} · ${categoryName(x.category)}${x.wear ? " · " + wearLabel(x.wear) : ""}</div>
+        <h3>${x.isStatTrak ? '<span class="badge st">ST</span>' : ""}${x.hasStickers ? '<span class="badge stick">наклейки</span>' : ""}${escapeHtml(x.name)}</h3>
+        <div class="muted">#${escapeHtml(x.id)} · ${categoryName(x.category)}${x.wear ? " · " + wearLabel(x.wear) : ""}</div>
         <div class="price">${Number(x.price)} ${t("stars")}</div>
         <div class="muted">Комиссия 20%: ${x.commissionAmount} ⭐ · продавцу: ${x.sellerPayout} ⭐</div>
       </div>
@@ -566,6 +661,10 @@ document.querySelectorAll(".chip").forEach((b) =>
     renderCatalog();
   })
 );
+document.getElementById("sortSelect")?.addEventListener("change", (e) => {
+  activeSort = e.target.value || "new";
+  renderCatalog();
+});
 
 function updateCommissionPreview() {
   const price = Number(document.getElementById("itemPrice")?.value || 0);
@@ -586,9 +685,14 @@ document.getElementById("addListing").onclick = async () => {
   const price = Number(document.getElementById("itemPrice").value);
   if (!skin || !Number.isInteger(price) || price <= 0) { alert(t("fillSkinPrice")); return; }
   const wear = document.getElementById("itemWear")?.value || "FT";
+  const autoCat = skin.category || detectCategoryFromName(skin.name);
+  const catEl = document.getElementById("itemCategory");
+  if (catEl) catEl.value = autoCat;
+  const isStatTrak = !!document.getElementById("itemStatTrak")?.checked;
+  const hasStickers = !!document.getElementById("itemStickers")?.checked;
   const payload = {
     name: skin.name,
-    category: document.getElementById("itemCategory").value || skin.category,
+    category: autoCat,
     price,
     image: skin.image,
     owner: currentOwnerId(),
@@ -598,7 +702,9 @@ document.getElementById("addListing").onclick = async () => {
     status: "pending",
     commission_percent: 20,
     commission_amount: Math.round(price * 0.20),
-    seller_payout: price - Math.round(price * 0.20)
+    seller_payout: price - Math.round(price * 0.20),
+    is_stattrak: isStatTrak,
+    has_stickers: hasStickers
   };
   try {
     const rows = await sb("listings", { method: "POST", body: JSON.stringify(payload) });
@@ -610,6 +716,8 @@ document.getElementById("addListing").onclick = async () => {
     return;
   }
   document.getElementById("itemPrice").value = "";
+  if (document.getElementById("itemStatTrak")) document.getElementById("itemStatTrak").checked = false;
+  if (document.getElementById("itemStickers")) document.getElementById("itemStickers").checked = false;
   skinSelect.value = "";
   if (skinSearch) skinSearch.value = "";
   populateSkins();
@@ -682,10 +790,10 @@ document.getElementById("createTicket").onclick = async () => {
 };
 
 function renderMyListings() {
-  const mine = listings.filter((x) => x.owner === currentOwnerId() || x.owner === userId);
+  const mine = listings.filter(isMineListing);
   document.getElementById("myListings").innerHTML = mine.map((x) =>
     `<div class="entry listing-manage">
-      <div><h3>${escapeHtml(x.name)} <span class="muted">#${escapeHtml(x.id)}</span></h3>
+      <div><h3>${x.isStatTrak ? '<span class="badge st">ST</span>' : ""}${x.hasStickers ? '<span class="badge stick">наклейки</span>' : ""}${escapeHtml(x.name)} <span class="muted">#${escapeHtml(x.id)}</span></h3>
       <p>${x.wear ? wearLabel(x.wear) + " · " : ""}${x.price} ⭐ · комиссия ${x.commissionAmount} ⭐ · вам ${x.sellerPayout} ⭐</p>
       <p class="muted">Статус: ${x.status === "approved" ? "Одобрено" : x.status === "rejected" ? "Отклонено" : "На модерации"}</p></div>
       <button class="danger" data-delete-listing="${escapeAttr(x.id)}" type="button">Удалить</button>
@@ -700,7 +808,8 @@ async function deleteListing(id) {
   if (!confirm("Удалить это объявление?")) return;
   try {
     if (!sbEnabled || !isLoggedIn()) throw new Error("Войдите в аккаунт, чтобы управлять объявлениями.");
-    await sb(`listings?id=eq.${encodeURIComponent(id)}&owner=eq.${encodeURIComponent(currentOwnerId())}`, {
+    // delete by id; RLS is open for delete in our setup
+    await sb(`listings?id=eq.${encodeURIComponent(id)}`, {
       method: "DELETE", prefer: "return=minimal"
     });
     listings = listings.filter((x) => String(x.id) !== String(id));
