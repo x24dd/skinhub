@@ -813,9 +813,12 @@ async function deleteListing(id) {
 
 function renderAdmin() {
   if (!isAdmin) return;
-  document.getElementById("adminTickets").innerHTML = tickets.map(ticketHtml).join("") || `<p class="muted">${t("noAdminTickets")}</p>`;
+  const ticketsEl = document.getElementById("adminTickets");
+  if (ticketsEl) ticketsEl.innerHTML = tickets.map(ticketHtml).join("") || `<p class="muted">${t("noAdminTickets")}</p>`;
   const pending = listings.filter((x) => x.status === "pending");
-  document.getElementById("adminListings").innerHTML = pending.map((x) =>
+  const listEl = document.getElementById("adminListings");
+  if (!listEl) return;
+  listEl.innerHTML = pending.map((x) =>
     `<div class="entry"><h3>${escapeHtml(x.name)} <span class="muted">#${escapeHtml(x.id)}</span></h3>
     <p>${x.price} ⭐ · комиссия ${x.commissionAmount} ⭐ · продавцу ${x.sellerPayout} ⭐ · ${escapeHtml(x.ownerName)}</p>
     <div class="admin-actions"><button class="primary" data-approve-listing="${escapeAttr(x.id)}">Одобрить</button>
