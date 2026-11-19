@@ -6,12 +6,7 @@ tg?.expand();
 const user = tg?.initDataUnsafe?.user || null;
 
 // 2. Выводим имя в кнопку
-if (user) {
-    const userLabel = document.getElementById("userLabel");
-    if (userLabel) {
-        userLabel.textContent = user.first_name;
-    }
-}
+
 
 // 3. Параметры
 const params = new URLSearchParams(location.search);
@@ -106,7 +101,7 @@ async function sbAuth(path, body) {
 
 function openAuthModal() {
   document.getElementById("authModal")?.classList.remove("hidden");
-  document.getElementById("authError").textContent = "";
+  const errEl = document.getElementById("authError"); if (errEl) errEl.textContent = "";
   updateAuthUI();
 }
 function closeAuthModal() {
@@ -126,7 +121,7 @@ document.querySelectorAll(".auth-tab").forEach((tab) => {
     const mode = tab.dataset.auth;
     document.getElementById("authLoginPane").classList.toggle("hidden", mode !== "login");
     document.getElementById("authRegisterPane").classList.toggle("hidden", mode !== "register");
-    document.getElementById("authError").textContent = "";
+    const err2 = document.getElementById("authError"); if (err2) err2.textContent = "";
   });
 });
 
@@ -544,11 +539,17 @@ async function loadAllData() {
   renderCatalog(); renderReviews(); renderTickets();
 }
 
-document.getElementById("userLabel").textContent = userName;
-document.getElementById("profileName").textContent = userName;
-document.getElementById("profileId").textContent = user ? "Telegram ID: " + user.id : t("localMode");
-document.getElementById("avatar").textContent = (userName[0] || "?").toUpperCase();
-if (isAdmin) document.getElementById("adminTab").hidden = false;
+const _authBtn = document.getElementById("authBtn");
+if (_authBtn) _authBtn.textContent = userName;
+const _pn = document.getElementById("profileName");
+if (_pn) _pn.textContent = userName;
+const _pi = document.getElementById("profileId");
+if (_pi) _pi.textContent = user ? "Telegram ID: " + user.id : t("localMode");
+const _av = document.getElementById("avatar");
+if (_av) _av.textContent = (userName[0] || "?").toUpperCase();
+const _adminTab = document.getElementById("adminTab");
+if (isAdmin && _adminTab) _adminTab.hidden = false;
+updateAuthUI();
 
 const langSelect = document.getElementById("langSelect");
 Object.entries(LANGS).forEach(([code, label]) => {
